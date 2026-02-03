@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { AuthProvider, User } from '@/types';
 import { NICKNAME_PREFIXES, NICKNAME_SUFFIXES } from '../constants';
+import { generateLineAuthUrl } from '@/lib/line-auth';
 
 // 環境変数チェック
 const isSupabaseConfigured =
@@ -101,25 +102,30 @@ export function useAuth() {
    * ソーシャルログイン
    */
   const loginWithProvider = async (provider: AuthProvider) => {
-    if (!isSupabaseConfigured) {
-      // モック認証（開発用）
-      const mockUser: User = {
-        id: 'mock-' + Date.now(),
-        email: `mock@${provider}.com`,
-        nickname: generateRandomNickname(),
-        provider,
-        created_at: new Date().toISOString(),
-      };
-      setUser(mockUser);
-      return { success: true };
-    }
-
     try {
       setError(null);
-      
-      // プロバイダーマッピング (Supabase仕様)
-      const providerMap: Record<AuthProvider, string> = {
-        line: 'line',
+
+      // LINE の場合は直接 OAuth フロー
+      if (provider === 'line') {
+        return loginWithLine();
+      }
+
+      // その他のプロバイダー (モックまたは Supabase)
+      if (!isSupabaseConfigured) {
+        // モック認証（開発用）
+        const mockUser: User = {
+          id: 'mock-' + Date.now(),
+          email: `mock@${provider}.com`,
+          nickname: generateRandomNickname(),
+          provider,
+          created_at: new Date().toISOString(),
+        };
+        setUser(mockUser);
+        return { success: true };
+      }
+
+      // Supabase OAuth (Twitter, Apple)
+      const providerMap: Record<Exclude<AuthProvider, 'line'>, string> = {
         twitter: 'twitter',
         apple: 'apple',
         email: 'email',
@@ -138,6 +144,24 @@ export function useAuth() {
       return { success: true, data };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
+   * LINE 直接ログイン
+   */
+  const loginWithLine = () => {
+    try {
+      const { url } = generateLineAuthUrl();
+      
+      // LINE 認証ページにリダイレクト
+      window.location.href = url;
+      
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'LINE ログインに失敗しました';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
