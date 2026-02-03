@@ -1,0 +1,205 @@
+---
+description: 本音 프로젝트 개발 표준 및 규칙
+alwaysApply: true
+---
+
+# 本音 (Honne) Development Standards
+
+## 1. Separation of Concerns
+
+**비즈니스 로직은 반드시 hooks에, UI는 컴포넌트에 분리**
+
+```typescript
+// ❌ BAD - UI 컴포넌트에 비즈니스 로직
+export function PostCard({ post }: PostCardProps) {
+  const [empathy, setEmpathy] = useState(0);
+  
+  const handleEmpathy = async () => {
+    const { data } = await supabase
+      .from('posts')
+      .update({ empathy_count: empathy + 1 })
+      .eq('id', post.id);
+    setEmpathy(empathy + 1);
+  };
+  
+  return <button onClick={handleEmpathy}>共感</button>;
+}
+
+// ✅ GOOD - 비즈니스 로직은 hooks에
+// hooks/useEmpathy.ts
+export function useEmpathy(postId: string) {
+  const [empathy, setEmpathy] = useState(0);
+  
+  const handleEmpathy = async () => {
+    const { data } = await supabase
+      .from('posts')
+      .update({ empathy_count: empathy + 1 })
+      .eq('id', postId);
+    setEmpathy(empathy + 1);
+  };
+  
+  return { empathy, handleEmpathy };
+}
+
+// components/PostCard.tsx
+export function PostCard({ post }: PostCardProps) {
+  const { empathy, handleEmpathy } = useEmpathy(post.id);
+  
+  return <button onClick={handleEmpathy}>共感</button>;
+}
+```
+
+## 2. Type Safety
+
+**`any` 타입 사용 금지. 모든 타입은 `src/types`에 정의**
+
+```typescript
+// ❌ BAD
+const fetchPosts = async (): Promise<any> => {
+  const response = await fetch('/api/posts');
+  return response.json();
+};
+
+// ✅ GOOD
+// src/types/index.ts
+export interface Post {
+  id: string;
+  content: string;
+  category: "悩み" | "愚痴" | "質問" | "雑談";
+  empathy_count: number;
+  comment_count: number;
+  created_at: string;
+}
+
+// API 호출
+const fetchPosts = async (): Promise<Post[]> => {
+  const response = await fetch('/api/posts');
+  return response.json();
+};
+```
+
+## 3. UI Consistency
+
+**Shadcn/UI와 Tailwind CSS 사용. 일본 웹 디자인 미학 준수**
+
+- **Shadcn/UI 컴포넌트 사용**: `src/components/ui/`에서 가져오기
+- **Tailwind 클래스 사용**: 인라인 스타일 금지
+- **일본 디자인 원칙**:
+  - 충분한 여백 (white space)
+  - 깔끔하고 미니멀한 디자인
+  - 부드러운 색상과 둥근 모서리
+  - 모바일 우선 반응형
+
+```typescript
+// ❌ BAD - 인라인 스타일
+<div style={{ padding: '16px', backgroundColor: 'white' }}>
+
+// ✅ GOOD - Tailwind CSS
+<div className="p-4 bg-white rounded-lg shadow-sm">
+
+// ✅ GOOD - Shadcn/UI 컴포넌트 사용
+import { Card, CardContent } from "@/components/ui/card";
+<Card className="hover:shadow-lg transition-shadow">
+  <CardContent>{content}</CardContent>
+</Card>
+```
+
+## 4. Naming Convention
+
+**함수/변수는 camelCase, 컴포넌트는 PascalCase**
+
+```typescript
+// ❌ BAD
+const FetchPosts = async () => {};
+const PostCard = () => {};
+const user_name = "匿名";
+
+// ✅ GOOD
+const fetchPosts = async () => {};
+export function PostCard() {}
+const userName = "匿名";
+```
+
+## 5. Documentation
+
+**복잡한 로직에는 JSDoc 주석 추가. DB 스키마 변경 시 README.md 업데이트**
+
+```typescript
+/**
+ * 투고 목록을 카테고리별로 필터링하여 가져옵니다.
+ * 
+ * @param category - 필터링할 카테고리 (undefined인 경우 전체)
+ * @param limit - 가져올 투고 수 (기본값: 20)
+ * @returns 필터링된 투고 배열
+ * 
+ * @example
+ * const posts = await fetchPostsByCategory("悩み", 10);
+ */
+export async function fetchPostsByCategory(
+  category?: Post["category"],
+  limit: number = 20
+): Promise<Post[]> {
+  // 복잡한 로직...
+}
+```
+
+## 6. I18n Ready
+
+**반복되는 일본어 문자열은 별도 상수 파일로 분리**
+
+```typescript
+// ❌ BAD - 하드코딩된 문자열
+<Button>投稿する</Button>
+<Badge>悩み</Badge>
+<span>共感</span>
+
+// ✅ GOOD - 상수로 분리
+// src/lib/constants/ja.ts
+export const LABELS = {
+  POST: "投稿する",
+  EMPATHY: "共感",
+  COMMENT: "コメント",
+  LOAD_MORE: "もっと見る",
+} as const;
+
+export const CATEGORIES = {
+  ALL: "すべて",
+  WORRY: "悩み",
+  COMPLAINT: "愚痴",
+  QUESTION: "質問",
+  CHAT: "雑談",
+} as const;
+
+// 컴포넌트에서 사용
+import { LABELS, CATEGORIES } from "@/lib/constants/ja";
+<Button>{LABELS.POST}</Button>
+<Badge>{CATEGORIES.WORRY}</Badge>
+```
+
+## 7. File Structure
+
+**기능별로 폴더 구조 유지**
+
+```
+src/
+├── app/              # Next.js pages
+├── components/ui/    # Shadcn UI components
+├── features/         # Feature-specific components & hooks
+│   ├── posts/
+│   │   ├── PostCard.tsx
+│   │   ├── PostForm.tsx
+│   │   └── hooks/
+│   │       └── usePostMutations.ts
+│   └── auth/
+├── lib/              # Shared utilities
+│   ├── constants/
+│   └── utils.ts
+└── types/            # TypeScript types
+```
+
+## 8. Additional Standards
+
+- **Client Components**: `"use client"` 디렉티브가 필요한 경우에만 사용
+- **Error Handling**: 모든 비동기 함수에 적절한 에러 처리
+- **Accessibility**: ARIA 레이블과 시맨틱 HTML 사용
+- **Performance**: 불필요한 리렌더링 방지 (useMemo, useCallback)
