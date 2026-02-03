@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "name": "honne",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://placeholder.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "placeholder_key"
+  }
+}
