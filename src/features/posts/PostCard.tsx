@@ -17,10 +17,10 @@ import {
   LucideIcon
 } from "lucide-react";
 import { LABELS, CATEGORY_COLORS } from "@/lib/constants/ja";
+import { useCommentCount } from "./hooks/useComments";
 
 interface PostCardProps {
   post: Post;
-  commentCount?: number;
 }
 
 /**
@@ -49,12 +49,13 @@ const getCategoryColor = (category: Category): string => {
   return CATEGORY_COLORS[category] || "bg-gray-100 text-gray-800 border-gray-200";
 };
 
-export function PostCard({ post, commentCount = 0 }: PostCardProps) {
+export function PostCard({ post }: PostCardProps) {
   const router = useRouter();
   const CategoryIcon = getCategoryIcon(post.category);
+  const { count: commentCount } = useCommentCount(post.id);
 
   const handleCardClick = () => {
-    router.push(`/post/${post.id}`);
+    router.push(`/posts/${post.id}`);
   };
 
   const timeAgo = (date: string) => {

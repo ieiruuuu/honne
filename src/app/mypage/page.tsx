@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/ui/header";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/features/posts/PostCard";
 import { AuthModal } from "@/features/auth/components/AuthModal";
+import { OnboardingModal } from "@/features/auth/components/OnboardingModal";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useNickname } from "@/features/user/hooks/useNickname";
 import { useMyPosts } from "@/features/user/hooks/useMyPosts";
 import { USER_LABELS } from "@/features/user/constants";
 import { AUTH_LABELS } from "@/features/auth/constants";
+import { ONBOARDING_LABELS } from "@/features/auth/components/onboarding-constants";
 import { CATEGORIES } from "@/lib/constants/ja";
 import { Heart, MessageSquare, Settings, RefreshCw, Loader2, Lock, LogOut } from "lucide-react";
 
@@ -21,8 +23,9 @@ import { Heart, MessageSquare, Settings, RefreshCw, Loader2, Lock, LogOut } from
  */
 export default function MyPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, logout, updateUserProfile, skipOnboarding } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"posts" | "liked">("posts");
 
   const { nickname, regenerateNickname } = useNickname();
@@ -43,6 +46,28 @@ export default function MyPage() {
       regenerateNickname();
       alert(USER_LABELS.NICKNAME_REGENERATED);
     }
+  };
+
+  // オンボーディングチェック
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const hasOnboarded = localStorage.getItem('user_has_onboarded') === 'true' || user.has_onboarded;
+      
+      if (!hasOnboarded) {
+        setShowOnboardingModal(true);
+      }
+    }
+  }, [isAuthenticated, user]);
+
+  const handleOnboardingComplete = async (data: { company_name?: string; salary?: number }) => {
+    await updateUserProfile(data);
+    setShowOnboardingModal(false);
+    alert(ONBOARDING_LABELS.SAVE_SUCCESS);
+  };
+
+  const handleOnboardingSkip = () => {
+    skipOnboarding();
+    setShowOnboardingModal(false);
   };
 
   const handleLogout = async () => {
@@ -131,6 +156,11 @@ export default function MyPage() {
 
         <BottomNav />
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+        <OnboardingModal
+          isOpen={showOnboardingModal}
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
       </div>
     );
   }
@@ -286,7 +316,6 @@ export default function MyPage() {
               <PostCard
                 key={post.id}
                 post={post}
-                commentCount={post.comments_count || 0}
               />
             ))}
           </div>

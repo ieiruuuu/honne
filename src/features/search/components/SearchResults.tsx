@@ -52,7 +52,7 @@ export function SearchResults({
       </div>
       <div className="space-y-3">
         {results.posts.map((post) => (
-          <PostCard key={post.id} post={post} commentCount={post.comments_count || 0} />
+          <PostCard key={post.id} post={post} />
         ))}
       </div>
     </div>

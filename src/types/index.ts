@@ -58,7 +58,7 @@ export interface SearchResult {
 /**
  * 認証プロバイダー
  */
-export type AuthProvider = 'line' | 'twitter' | 'apple' | 'email';
+export type AuthProvider = 'line' | 'email';
 
 /**
  * ユーザー情報
@@ -69,6 +69,9 @@ export interface User {
   nickname: string; // 匿名ニックネーム
   avatar_url?: string;
   provider: AuthProvider;
+  company_name?: string; // 会社名（オプション）
+  salary?: number; // 年収（オプション）
+  has_onboarded?: boolean; // オンボーディング完了フラグ
   created_at: string;
 }
 

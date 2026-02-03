@@ -47,7 +47,7 @@ export function FeedList() {
   return (
     <div className="space-y-4">
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} commentCount={0} />
+        <PostCard key={post.id} post={post} />
       ))}
     </div>
   );

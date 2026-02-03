@@ -15,23 +15,39 @@ export const AUTH_LABELS = {
   
   // ボタン
   LOGIN_WITH_LINE: "LINEでログイン",
-  LOGIN_WITH_X: "Xでログイン",
-  LOGIN_WITH_APPLE: "Appleでログイン",
-  LOGIN_WITH_EMAIL: "メールでログイン",
-  
+  LOGIN_BUTTON: "ログイン",
+  SIGNUP_BUTTON: "新規登録",
   LOGOUT: "ログアウト",
   CANCEL: "キャンセル",
   
-  // プレースホルダー
-  EMAIL_PLACEHOLDER: "メールアドレスを入力",
-  SEND_MAGIC_LINK: "マジックリンクを送信",
+  // フォーム
+  EMAIL_LABEL: "メールアドレス",
+  EMAIL_PLACEHOLDER: "example@email.com",
+  PASSWORD_LABEL: "パスワード",
+  PASSWORD_PLACEHOLDER: "6文字以上",
+  PASSWORD_CONFIRM_LABEL: "パスワード（確認）",
+  PASSWORD_CONFIRM_PLACEHOLDER: "もう一度入力してください",
+  
+  // トグル
+  NO_ACCOUNT: "アカウントをお持ちでないですか？",
+  HAVE_ACCOUNT: "すでにアカウントをお持ちですか？",
+  GOTO_SIGNUP: "新規登録",
+  GOTO_LOGIN: "ログイン",
+  
+  // 区切り
+  OR_DIVIDER: "または",
   
   // メッセージ
-  MAGIC_LINK_SENT: "メールを送信しました。リンクをクリックしてログインしてください。",
   LOGIN_REQUIRED: "ログインが必要です",
   LOGIN_SUCCESS: "ログインしました",
+  SIGNUP_SUCCESS: "登録が完了しました",
   LOGOUT_SUCCESS: "ログアウトしました",
   LOGIN_ERROR: "ログインに失敗しました",
+  SIGNUP_ERROR: "登録に失敗しました",
+  EMAIL_CONFIRMATION_REQUIRED: "確認メールを送信しました。メールのリンクをクリックして登録を完了してください。",
+  PASSWORD_MISMATCH: "パスワードが一致しません",
+  PASSWORD_TOO_SHORT: "パスワードは6文字以上で入力してください",
+  INVALID_EMAIL: "有効なメールアドレスを入力してください",
   
   // 情報
   WHY_LOGIN: "ログインすると以下が可能になります",
@@ -43,6 +59,7 @@ export const AUTH_LABELS = {
 
 /**
  * ソーシャルログインプロバイダーの設定
+ * 現在は LINE のみサポート
  */
 export const AUTH_PROVIDERS = {
   line: {
@@ -50,24 +67,6 @@ export const AUTH_PROVIDERS = {
     color: '#00B900', // LINE 公式カラー
     icon: '💬',
     popular: true, // 日本で人気
-  },
-  twitter: {
-    name: 'X',
-    color: '#000000', // X (Twitter) 新ブランドカラー
-    icon: '𝕏',
-    popular: true,
-  },
-  apple: {
-    name: 'Apple',
-    color: '#000000',
-    icon: '',
-    popular: true,
-  },
-  email: {
-    name: 'Email',
-    color: '#6B7280',
-    icon: '✉️',
-    popular: false,
   },
 } as const;
 

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
-import type { AuthProvider, User } from '@/types';
-import { NICKNAME_PREFIXES, NICKNAME_SUFFIXES } from '../constants';
+import { supabase } from '@/lib/supabase';
 import { generateLineAuthUrl } from '@/lib/line-auth';
+import type { User } from '@/types';
+import { NICKNAME_PREFIXES, NICKNAME_SUFFIXES } from '../constants';
 
 // 環境変数チェック
 const isSupabaseConfigured =
@@ -24,8 +24,7 @@ const generateRandomNickname = (): string => {
  * 認証カスタムフック
  * 
  * 機能:
- * - ソーシャルログイン (LINE, X, Apple)
- * - メールマジックリンク
+ * - LINE ログイン（直接 OAuth 2.0 連携）
  * - 自動ニックネーム生成
  * - セッション管理
  */
@@ -46,7 +45,6 @@ export function useAuth() {
    */
   const checkSession = async () => {
     if (!isSupabaseConfigured) {
-      console.warn('⚠️ Supabase is not configured. Using mock auth.');
       setLoading(false);
       return;
     }
@@ -56,20 +54,14 @@ export function useAuth() {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        // Supabase ユーザーから User オブジェクトを構築
         const userData: User = {
           id: session.user.id,
           email: session.user.email,
           nickname: session.user.user_metadata?.nickname || generateRandomNickname(),
           avatar_url: session.user.user_metadata?.avatar_url,
-          provider: (session.user.app_metadata?.provider as AuthProvider) || 'email',
+          provider: (session.user.app_metadata?.provider as 'line' | 'email') || 'email',
           created_at: session.user.created_at,
         };
-
-        // ニックネームが未設定の場合、生成して更新
-        if (!session.user.user_metadata?.nickname) {
-          await updateNickname(userData.nickname);
-        }
 
         setUser(userData);
       } else {
@@ -77,83 +69,17 @@ export function useAuth() {
       }
     } catch (err) {
       console.error('Session check error:', err);
-      setError(err instanceof Error ? err.message : 'セッション確認に失敗しました');
     } finally {
       setLoading(false);
     }
   };
 
   /**
-   * ニックネーム更新
-   */
-  const updateNickname = async (nickname: string) => {
-    if (!isSupabaseConfigured) return;
-
-    try {
-      await supabase.auth.updateUser({
-        data: { nickname },
-      });
-    } catch (err) {
-      console.error('Nickname update error:', err);
-    }
-  };
-
-  /**
-   * ソーシャルログイン
-   */
-  const loginWithProvider = async (provider: AuthProvider) => {
-    try {
-      setError(null);
-
-      // LINE の場合は直接 OAuth フロー
-      if (provider === 'line') {
-        return loginWithLine();
-      }
-
-      // その他のプロバイダー (モックまたは Supabase)
-      if (!isSupabaseConfigured) {
-        // モック認証（開発用）
-        const mockUser: User = {
-          id: 'mock-' + Date.now(),
-          email: `mock@${provider}.com`,
-          nickname: generateRandomNickname(),
-          provider,
-          created_at: new Date().toISOString(),
-        };
-        setUser(mockUser);
-        return { success: true };
-      }
-
-      // Supabase OAuth (Twitter, Apple)
-      const providerMap: Record<Exclude<AuthProvider, 'line'>, string> = {
-        twitter: 'twitter',
-        apple: 'apple',
-        email: 'email',
-      };
-
-      const { data, error: authError } = await supabase.auth.signInWithOAuth({
-        // @ts-expect-error - Supabase provider type mismatch
-        provider: providerMap[provider],
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (authError) throw authError;
-
-      return { success: true, data };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  /**
-   * LINE 直接ログイン
+   * LINE ログイン
    */
   const loginWithLine = () => {
     try {
+      setError(null);
       const { url } = generateLineAuthUrl();
       
       // LINE 認証ページにリダイレクト
@@ -168,9 +94,69 @@ export function useAuth() {
   };
 
   /**
-   * メールマジックリンクログイン
+   * メール/パスワードで新規登録
    */
-  const loginWithEmail = async (email: string) => {
+  const signUpWithEmail = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      // モック認証
+      const mockUser: User = {
+        id: 'mock-' + Date.now(),
+        email,
+        nickname: generateRandomNickname(),
+        provider: 'email',
+        created_at: new Date().toISOString(),
+      };
+      setUser(mockUser);
+      return { success: true, needsEmailConfirmation: false };
+    }
+
+    try {
+      setError(null);
+
+      const nickname = generateRandomNickname();
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            nickname,
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        // メール確認が必要かチェック
+        const needsEmailConfirmation = !data.session;
+
+        if (data.session) {
+          const userData: User = {
+            id: data.user.id,
+            email: data.user.email,
+            nickname,
+            provider: 'email',
+            created_at: data.user.created_at,
+          };
+          setUser(userData);
+        }
+
+        return { success: true, needsEmailConfirmation };
+      }
+
+      return { success: false, error: '登録に失敗しました' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '登録に失敗しました';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
+   * メール/パスワードでログイン
+   */
+  const signInWithEmail = async (email: string, password: string) => {
     if (!isSupabaseConfigured) {
       // モック認証
       const mockUser: User = {
@@ -187,18 +173,30 @@ export function useAuth() {
     try {
       setError(null);
 
-      const { error: authError } = await supabase.auth.signInWithOtp({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        password,
       });
 
-      if (authError) throw authError;
+      if (signInError) throw signInError;
 
-      return { success: true };
+      if (data.session && data.user) {
+        const userData: User = {
+          id: data.user.id,
+          email: data.user.email,
+          nickname: data.user.user_metadata?.nickname || generateRandomNickname(),
+          avatar_url: data.user.user_metadata?.avatar_url,
+          provider: 'email',
+          created_at: data.user.created_at,
+        };
+
+        setUser(userData);
+        return { success: true };
+      }
+
+      return { success: false, error: 'ログインに失敗しました' };
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'メール送信に失敗しました';
+      const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました';
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -214,8 +212,8 @@ export function useAuth() {
     }
 
     try {
-      const { error: authError } = await supabase.auth.signOut();
-      if (authError) throw authError;
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
 
       storeLogout();
       return { success: true };
@@ -226,14 +224,83 @@ export function useAuth() {
     }
   };
 
+  /**
+   * ユーザープロフィール更新（オンボーディング情報）
+   */
+  const updateUserProfile = async (data: { company_name?: string; salary?: number }) => {
+    if (!isSupabaseConfigured) {
+      // モック: LocalStorage に保存
+      const currentUser = user;
+      if (currentUser) {
+        const updatedUser: User = {
+          ...currentUser,
+          company_name: data.company_name,
+          salary: data.salary,
+          has_onboarded: true,
+        };
+        setUser(updatedUser);
+        localStorage.setItem('user_has_onboarded', 'true');
+      }
+      return { success: true };
+    }
+
+    try {
+      if (!user) {
+        return { success: false, error: 'ログインしてください' };
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          company_name: data.company_name,
+          salary: data.salary,
+          has_onboarded: true,
+        },
+      });
+
+      if (updateError) throw updateError;
+
+      // ローカル状態を更新
+      const updatedUser: User = {
+        ...user,
+        company_name: data.company_name,
+        salary: data.salary,
+        has_onboarded: true,
+      };
+      setUser(updatedUser);
+      localStorage.setItem('user_has_onboarded', 'true');
+
+      return { success: true };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '更新に失敗しました';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  /**
+   * オンボーディングをスキップ
+   */
+  const skipOnboarding = () => {
+    if (user) {
+      const updatedUser: User = {
+        ...user,
+        has_onboarded: true,
+      };
+      setUser(updatedUser);
+    }
+    localStorage.setItem('user_has_onboarded', 'true');
+  };
+
   return {
     user,
     isAuthenticated,
     isLoading: useAuthStore.getState().isLoading,
     error,
-    loginWithProvider,
-    loginWithEmail,
+    loginWithLine,
+    signUpWithEmail,
+    signInWithEmail,
     logout,
-    checkSession,
+    updateUserProfile,
+    skipOnboarding,
   };
 }
