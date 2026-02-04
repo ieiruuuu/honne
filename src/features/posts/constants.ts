@@ -24,4 +24,14 @@ export const POST_DETAIL_LABELS = {
   DEFAULT_COMPANY: "A社",
   SALARY_LABEL: "年収",
   COMPANY_LABEL: "会社",
+  
+  // ログイン必須メッセージ
+  LOGIN_REQUIRED_TITLE: "ログインが必要です",
+  LOGIN_REQUIRED_COMMENT: "ログイン後にコメントを作成できます",
+  LOGIN_REQUIRED_POST: "ログイン後に投稿を作成できます",
+  LOGIN_REQUIRED_LIKE: "ログイン後にいいねできます",
+  LOGIN_TO_COMMENT: "ログインしてコメントする",
+  LOGIN_TO_POST: "ログインして投稿する",
+  LOGIN_TO_LIKE: "ログインしていいねする",
+  LOGIN_PROMPT: "コメントを書くにはログインしてください",
 } as const;

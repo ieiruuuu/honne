@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePost } from "@/features/posts/hooks/usePost";
 import { useComments } from "@/features/posts/hooks/useComments";
+import { useLike } from "@/features/posts/hooks/useLike";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { AuthModal } from "@/features/auth/components/AuthModal";
 import { POST_DETAIL_LABELS } from "@/features/posts/constants";
 import { LABELS, CATEGORY_COLORS } from "@/lib/constants/ja";
 import { 
@@ -81,25 +84,48 @@ export default function PostDetailPage() {
   
   const { post, isLoading: postLoading, error: postError } = usePost(postId);
   const { comments, count: commentCount, isLoading: commentsLoading } = useComments(postId);
+  const { user, isAuthenticated } = useAuth();
+  const { likesCount, isLiked, toggleLike } = useLike(
+    postId,
+    post?.likes_count || 0,
+    user?.id
+  );
   const [comment, setComment] = useState("");
-  const [liked, setLiked] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
   // 統合ローディング状態
   const isLoading = postLoading;
   const error = postError;
 
-  const handleLike = () => {
-    setLiked(!liked);
-    // TODO: Supabase 連携
+  const handleLike = async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    
+    await toggleLike();
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ログインチェック
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    
     if (!comment.trim()) return;
     
     // TODO: Supabase 連携
     alert(`コメントを投稿しました: ${comment}`);
     setComment("");
+  };
+
+  const handleCommentInputClick = () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+    }
   };
 
   // ローディング状態
@@ -209,13 +235,21 @@ export default function PostDetailPage() {
 
             <div className="flex gap-4 pt-4 border-t">
               <Button
-                variant={liked ? "default" : "ghost"}
+                variant="ghost"
                 size="sm"
                 onClick={handleLike}
                 className="gap-2"
               >
-                <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
-                <span>{post.likes_count + (liked ? 1 : 0)}</span>
+                <Heart 
+                  className={`w-4 h-4 transition-colors ${
+                    isLiked 
+                      ? "fill-red-500 text-red-500" 
+                      : "text-gray-600"
+                  }`}
+                />
+                <span className={`${isLiked ? "text-red-500 font-medium" : ""}`}>
+                  {likesCount}
+                </span>
                 <span className="text-xs">{LABELS.LIKES}</span>
               </Button>
               <Button variant="ghost" size="sm" className="gap-2">
@@ -274,27 +308,56 @@ export default function PostDetailPage() {
         {/* コメント入力 */}
         <Card>
           <CardContent className="pt-4">
-            <form onSubmit={handleCommentSubmit} className="space-y-3">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder={POST_DETAIL_LABELS.COMMENT_PLACEHOLDER}
-                className="w-full min-h-[100px] p-3 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent"
-                maxLength={500}
-              />
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-400">{comment.length}/500</span>
-                <Button type="submit" disabled={!comment.trim()} className="gap-2">
-                  <Send className="w-4 h-4" />
-                  {LABELS.POST}
-                </Button>
+            {!isAuthenticated ? (
+              <div 
+                onClick={() => setShowAuthModal(true)}
+                className="cursor-pointer"
+              >
+                <div className="relative">
+                  <textarea
+                    placeholder={POST_DETAIL_LABELS.LOGIN_PROMPT}
+                    className="w-full min-h-[100px] p-3 text-sm border border-gray-300 rounded-lg resize-none bg-gray-50 cursor-pointer"
+                    disabled
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-lg">
+                    <div className="text-center">
+                      <MessageCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm font-medium text-gray-700 mb-1">
+                        {POST_DETAIL_LABELS.LOGIN_REQUIRED_COMMENT}
+                      </p>
+                      <Button size="sm" className="gap-2 mt-2">
+                        <Send className="w-4 h-4" />
+                        {POST_DETAIL_LABELS.LOGIN_TO_COMMENT}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleCommentSubmit} className="space-y-3">
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  onClick={handleCommentInputClick}
+                  placeholder={POST_DETAIL_LABELS.COMMENT_PLACEHOLDER}
+                  className="w-full min-h-[100px] p-3 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent"
+                  maxLength={500}
+                />
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-400">{comment.length}/500</span>
+                  <Button type="submit" disabled={!comment.trim()} className="gap-2">
+                    <Send className="w-4 h-4" />
+                    {LABELS.POST}
+                  </Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       </main>
 
       <BottomNav />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 }

@@ -5,20 +5,33 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/ui/header";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useCreatePost } from "@/features/feed/hooks/useCreatePost";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { AuthModal } from "@/features/auth/components/AuthModal";
 import { LABELS, PLACEHOLDERS, CATEGORIES, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/lib/constants/ja";
-import { Send, X, Save, Info } from "lucide-react";
+import { POST_DETAIL_LABELS } from "@/features/posts/constants";
+import { Send, X, Save, Info, Lock, Loader2 } from "lucide-react";
 import type { Category } from "@/types";
 
 const DRAFT_KEY = "post_draft";
 
 export default function WritePage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [content, setContent] = useState("");
   const [nickname, setNickname] = useState("");
   const [category, setCategory] = useState<Category | "">("");
   const [hasChanges, setHasChanges] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { createPost, isCreating, error, validationErrors } = useCreatePost();
+
+  // ログイン確認
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      setShowAuthModal(true);
+    }
+  }, [authLoading, isAuthenticated]);
 
   /**
    * カテゴリー別動的プレースホルダー
@@ -117,6 +130,62 @@ export default function WritePage() {
     }
   };
 
+  // ローディング中
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-16">
+        <Header />
+        <main className="container mx-auto max-w-2xl px-4 py-6">
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
+            <p className="text-sm text-gray-600">読み込み中...</p>
+          </div>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // 未ログイン
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-16">
+        <Header />
+        <main className="container mx-auto max-w-2xl px-4 py-6">
+          <Card className="mt-10">
+            <CardContent className="pt-12 pb-12 text-center">
+              <Lock className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                {POST_DETAIL_LABELS.LOGIN_REQUIRED_TITLE}
+              </h2>
+              <p className="text-sm text-gray-600 mb-6">
+                {POST_DETAIL_LABELS.LOGIN_REQUIRED_POST}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => setShowAuthModal(true)} className="gap-2">
+                  <Lock className="w-4 h-4" />
+                  {POST_DETAIL_LABELS.LOGIN_TO_POST}
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/")}>
+                  ホームに戻る
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+        <BottomNav />
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => {
+            setShowAuthModal(false);
+            router.push("/");
+          }} 
+        />
+      </div>
+    );
+  }
+
+  // ログイン済み - 通常の投稿フォーム
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
       <Header />

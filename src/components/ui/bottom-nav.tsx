@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Bell, PenSquare, User } from "lucide-react";
+import { Home, Bell, PenSquare, User, Grid3x3 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { LABELS } from "@/lib/constants/ja";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,12 @@ const navItems = [
     path: "/write",
   },
   {
+    id: "category",
+    label: "カテゴリー",
+    icon: Grid3x3,
+    path: "/categories", // 독립 페이지로 변경
+  },
+  {
     id: "mypage",
     label: LABELS.MY_PAGE,
     icon: User,
@@ -47,6 +53,11 @@ export function BottomNav() {
             const Icon = item.icon;
             const isActive = pathname === item.path;
             const showBadge = item.showBadge && unreadCount > 0;
+            
+            // カテゴリー関連ページで活性化
+            const isCategoryActive = 
+              item.id === "category" && 
+              (pathname === "/categories" || pathname.startsWith("/category/"));
 
             return (
               <button
@@ -54,20 +65,26 @@ export function BottomNav() {
                 onClick={() => router.push(item.path)}
                 className={cn(
                   "flex flex-col items-center justify-center flex-1 h-full transition-colors relative",
-                  isActive
+                  isActive || isCategoryActive
                     ? "text-gray-900"
                     : "text-gray-400 hover:text-gray-600"
                 )}
               >
                 <div className="relative">
-                  <Icon className={cn("w-6 h-6 mb-1", isActive && "stroke-[2.5]")} />
+                  <Icon className={cn(
+                    "w-6 h-6 mb-1", 
+                    (isActive || isCategoryActive) && "stroke-[2.5]"
+                  )} />
                   {showBadge && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </div>
-                <span className={cn("text-xs", isActive && "font-medium")}>
+                <span className={cn(
+                  "text-xs", 
+                  (isActive || isCategoryActive) && "font-medium"
+                )}>
                   {item.label}
                 </span>
               </button>

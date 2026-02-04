@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Post, Category } from "@/types";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -18,15 +19,18 @@ import {
 } from "lucide-react";
 import { LABELS, CATEGORY_COLORS } from "@/lib/constants/ja";
 import { useCommentCount } from "./hooks/useComments";
+import { useLike } from "./hooks/useLike";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { AuthModal } from "@/features/auth/components/AuthModal";
 
 interface PostCardProps {
   post: Post;
 }
 
 /**
- * カテゴリー別アイコン取得
+ * カテゴリー別アイコン取得 (Export for reuse)
  */
-const getCategoryIcon = (category: Category): LucideIcon => {
+export const getCategoryIcon = (category: Category): LucideIcon => {
   const iconMap: Record<Category, LucideIcon> = {
     "年収・手取り": Coins,
     "ホワイト・ブラック判定": Scale,
@@ -51,11 +55,29 @@ const getCategoryColor = (category: Category): string => {
 
 export function PostCard({ post }: PostCardProps) {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
   const CategoryIcon = getCategoryIcon(post.category);
   const { count: commentCount } = useCommentCount(post.id);
+  const { likesCount, isLiked, toggleLike } = useLike(
+    post.id,
+    post.likes_count || 0,
+    user?.id
+  );
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleCardClick = () => {
     router.push(`/posts/${post.id}`);
+  };
+
+  const handleLikeClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // カードクリックを防ぐ
+    
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    
+    await toggleLike();
   };
 
   const timeAgo = (date: string) => {
@@ -74,6 +96,7 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   return (
+    <>
     <Card 
       className="hover:shadow-lg transition-shadow duration-200 cursor-pointer"
       onClick={handleCardClick}
@@ -103,9 +126,22 @@ export function PostCard({ post }: PostCardProps) {
         </p>
       </CardContent>
       <CardFooter className="flex gap-4 pt-0">
-        <Button variant="ghost" size="sm" className="gap-2">
-          <Heart className="w-4 h-4" />
-          <span className="text-sm">{post.likes_count}</span>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="gap-2"
+          onClick={handleLikeClick}
+        >
+          <Heart 
+            className={`w-4 h-4 transition-colors ${
+              isLiked 
+                ? "fill-red-500 text-red-500" 
+                : "text-gray-600"
+            }`}
+          />
+          <span className={`text-sm ${isLiked ? "text-red-500 font-medium" : ""}`}>
+            {likesCount}
+          </span>
           <span className="text-xs text-muted-foreground">{LABELS.LIKES}</span>
         </Button>
         <Button variant="ghost" size="sm" className="gap-2">
@@ -115,5 +151,9 @@ export function PostCard({ post }: PostCardProps) {
         </Button>
       </CardFooter>
     </Card>
+    {showAuthModal && (
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+    )}
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Post } from "@/types";
+import { Post, Category } from "@/types";
 
 // 환경 변수 체크
 const isSupabaseConfigured = 
@@ -55,12 +55,13 @@ const mockPosts: Post[] = [
  * 게시글 목록을 가져오고 실시간 업데이트를 구독하는 Hook
  * Supabase가 설정되지 않은 경우 모크 데이터를 반환합니다.
  * 
+ * @param category - 필터링할 카테고리 (옵션)
  * @returns posts - 게시글 배열
  * @returns isLoading - 로딩 상태
  * @returns error - 에러 메시지
  * @returns refetch - 수동 새로고침 함수
  */
-export function usePosts() {
+export function usePosts(category?: Category) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,15 +74,29 @@ export function usePosts() {
       // Supabase가 설정되지 않은 경우 모크 데이터 사용
       if (!isSupabaseConfigured) {
         await new Promise((resolve) => setTimeout(resolve, 500)); // 로딩 시뮬레이션
-        setPosts(mockPosts);
+        
+        // 카테고리 필터링
+        const filteredPosts = category 
+          ? mockPosts.filter(post => post.category === category)
+          : mockPosts;
+        
+        setPosts(filteredPosts);
         setIsLoading(false);
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      // Supabase 쿼리
+      let query = supabase
         .from("posts")
         .select("*")
         .order("created_at", { ascending: false });
+
+      // 카테고리 필터링 추가
+      if (category) {
+        query = query.eq("category", category);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
 
@@ -89,8 +104,11 @@ export function usePosts() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
       console.error("Error fetching posts:", err);
-      // 에러 시에도 모크 데이터 표시
-      setPosts(mockPosts);
+      // 에러 시에도 모크 데이터 표시 (필터링 적용)
+      const filteredPosts = category 
+        ? mockPosts.filter(post => post.category === category)
+        : mockPosts;
+      setPosts(filteredPosts);
     } finally {
       setIsLoading(false);
     }
@@ -116,17 +134,23 @@ export function usePosts() {
           table: "posts",
         },
         (payload) => {
+          const newPost = payload.new as Post;
+          const oldPost = payload.old as { id: string };
+
+          // 카테고리 필터링이 있는 경우 해당 카테고리만 업데이트
           if (payload.eventType === "INSERT") {
-            setPosts((current) => [payload.new as Post, ...current]);
+            if (!category || newPost.category === category) {
+              setPosts((current) => [newPost, ...current]);
+            }
           } else if (payload.eventType === "UPDATE") {
             setPosts((current) =>
               current.map((post) =>
-                post.id === payload.new.id ? (payload.new as Post) : post
+                post.id === newPost.id ? newPost : post
               )
             );
           } else if (payload.eventType === "DELETE") {
             setPosts((current) =>
-              current.filter((post) => post.id !== payload.old.id)
+              current.filter((post) => post.id !== oldPost.id)
             );
           }
         }
@@ -137,7 +161,8 @@ export function usePosts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]); // category 변경 시 재구독
 
   return {
     posts,
