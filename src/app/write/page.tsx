@@ -103,9 +103,15 @@ export default function WritePage() {
     if (result) {
       // 下書き削除
       localStorage.removeItem(DRAFT_KEY);
+      
+      console.log("✅ Post created successfully:", result);
+      
       // 홈으로 이동
       alert(SUCCESS_MESSAGES.POST_CREATED);
       router.push("/");
+      
+      // 강제 새로고침 (실시간 업데이트가 안 될 경우를 대비)
+      router.refresh();
     }
   };
 

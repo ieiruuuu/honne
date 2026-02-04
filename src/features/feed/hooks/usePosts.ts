@@ -49,6 +49,9 @@ export function usePosts(category?: Category) {
 
       if (fetchError) throw fetchError;
 
+      console.log(`✅ Fetched ${data?.length || 0} posts from Supabase`);
+      console.log("📊 Posts data:", data);
+
       setPosts(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
