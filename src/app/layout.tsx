@@ -16,6 +16,10 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "本音 - 本音で語れる場所",
   description: "社会人のための匿名コミュニティ。悩み、愚痴、質問を共有しよう。",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({
