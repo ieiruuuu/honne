@@ -144,6 +144,39 @@ export default function PostDetailPage() {
     );
   }
 
+  // エラー状態 - Supabase未設定
+  if (error === "SUPABASE_NOT_CONFIGURED") {
+    return (
+      <div className="min-h-screen bg-gray-50 pb-16">
+        <Header />
+        <main className="container mx-auto max-w-2xl px-4 py-6">
+          <div className="flex flex-col items-center justify-center py-20">
+            <AlertCircle className="w-16 h-16 text-orange-400 mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Supabaseが設定されていません
+            </h2>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 max-w-md">
+              <p className="text-sm text-gray-700 mb-3">
+                <strong>手順:</strong>
+              </p>
+              <ol className="text-sm text-gray-700 space-y-2 list-decimal list-inside">
+                <li>Supabase Dashboard → Settings → API</li>
+                <li>Project URLとanon keyをコピー</li>
+                <li>.env.localファイルを更新</li>
+                <li>開発サーバーを再起動: npm run dev</li>
+              </ol>
+            </div>
+            <Button onClick={() => router.push("/")} className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              ホームに戻る
+            </Button>
+          </div>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
   // エラー状態 - 投稿が見つからない
   if (error === "NOT_FOUND" || !post) {
     return (
