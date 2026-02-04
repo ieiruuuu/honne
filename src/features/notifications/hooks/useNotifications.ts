@@ -1,49 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Notification, Post } from "@/types";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { HOT_POST_THRESHOLD, HOT_POST_HOURS } from "../constants";
 import { useAuthStore } from "@/store/useAuthStore";
-
-// Supabase 設定チェック
-const isSupabaseConfigured =
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co" &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== "placeholder-key";
-
-// モック通知データ
-const mockNotifications: Notification[] = [
-  {
-    id: "hot-1",
-    type: "HOT_POST",
-    post_id: "1",
-    content: "「上司との人間関係」についての投稿が話題になっています",
-    is_read: false,
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    id: "2",
-    type: "LIKE",
-    post_id: "2",
-    content: "「サラリーマン」さんがあなたの投稿にいいねしました",
-    is_read: false,
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: "3",
-    type: "COMMENT",
-    post_id: "3",
-    content: "「匿名太郎」さんがあなたの投稿にコメントしました",
-    is_read: false,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: "4",
-    type: "LIKE",
-    post_id: "1",
-    content: "「転職希望」さんがあなたの投稿にいいねしました",
-    is_read: true,
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-];
 
 /**
  * 通知管理カスタムフック
@@ -62,99 +21,193 @@ const mockNotifications: Notification[] = [
  * @returns unreadCount - 未読数
  */
 export function useNotifications() {
-  const { isAuthenticated } = useAuthStore();
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const { isAuthenticated, user } = useAuthStore();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [hotPosts, setHotPosts] = useState<Post[]>([]);
   const [hotPostsCount, setHotPostsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  /**
+   * 個人通知を取得（Supabase）
+   */
+  const fetchPersonalNotifications = useCallback(async () => {
+    if (!isSupabaseConfigured || !isAuthenticated || !user?.id) {
+      setNotifications([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Failed to fetch notifications:", error);
+        setNotifications([]);
+        return;
+      }
+
+      setNotifications(data || []);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      setNotifications([]);
+    }
+  }, [isAuthenticated, user?.id]);
 
   /**
    * 人気投稿を取得（最近24時間以内、likes_count >= 閾値）
    */
-  useEffect(() => {
-    const fetchHotPosts = async () => {
-      if (!isSupabaseConfigured) {
-        // モックデータ
-        const mockHotPosts: Post[] = [
-          {
-            id: "hot-1",
-            content: "3年目、システムエンジニア、年収450万円、手取り月28万円くらいです。みなさんはどうですか？",
-            category: "年収・手取り",
-            nickname: "匿名太郎",
-            likes_count: 87,
-            comments_count: 34,
-            created_at: new Date(Date.now() - 7200000).toISOString(),
-          },
-          {
-            id: "hot-2",
-            content: "残業月80時間、休日出勤あり、パワハラ日常茶飯事...これってブラック企業ですよね？",
-            category: "ホワイト・ブラック判定",
-            nickname: "疲れた社員",
-            likes_count: 65,
-            comments_count: 28,
-            created_at: new Date(Date.now() - 10800000).toISOString(),
-          },
-        ];
-        setHotPosts(mockHotPosts);
-        setHotPostsCount(mockHotPosts.length);
-        return;
-      }
+  const fetchHotPosts = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      console.warn("⚠️ Supabase is not configured");
+      setHotPosts([]);
+      setHotPostsCount(0);
+      return;
+    }
 
-      try {
-        // 最近24時間以内 & likes_count が閾値以上の投稿を取得
-        const twentyFourHoursAgo = new Date(Date.now() - HOT_POST_HOURS * 60 * 60 * 1000).toISOString();
-        
-        const { data, error } = await supabase
-          .from("posts")
-          .select("*")
-          .gte("likes_count", HOT_POST_THRESHOLD)
-          .gte("created_at", twentyFourHoursAgo)
-          .order("likes_count", { ascending: false })
-          .limit(10);
+    try {
+      // 最近24時間以内 & likes_count が閾値以上の投稿を取得
+      const twentyFourHoursAgo = new Date(Date.now() - HOT_POST_HOURS * 60 * 60 * 1000).toISOString();
+      
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .gte("likes_count", HOT_POST_THRESHOLD)
+        .gte("created_at", twentyFourHoursAgo)
+        .order("likes_count", { ascending: false })
+        .limit(10);
 
-        if (error) throw error;
-        setHotPosts(data || []);
-        setHotPostsCount(data?.length || 0);
-      } catch (err) {
-        console.error("Failed to fetch hot posts:", err);
-        setHotPostsCount(0);
-      }
-    };
-
-    fetchHotPosts();
-
-    // 定期的に更新（5分ごと）
-    const interval = setInterval(fetchHotPosts, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+      if (error) throw error;
+      setHotPosts(data || []);
+      setHotPostsCount(data?.length || 0);
+    } catch (err) {
+      console.error("Failed to fetch hot posts:", err);
+      setHotPosts([]);
+      setHotPostsCount(0);
+    }
   }, []);
 
   /**
-   * 既読にする
+   * データ取得
    */
-  const markAsRead = (notificationId: string) => {
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      
+      // 個人通知取得（ログインユーザーのみ）
+      if (isAuthenticated) {
+        await fetchPersonalNotifications();
+      }
+      
+      // 人気投稿取得（全ユーザー）
+      await fetchHotPosts();
+      
+      setIsLoading(false);
+    };
+
+    loadData();
+
+    // 定期的に更新（5分ごと）
+    const interval = setInterval(() => {
+      if (isAuthenticated) {
+        fetchPersonalNotifications();
+      }
+      fetchHotPosts();
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchPersonalNotifications, fetchHotPosts]);
+
+  /**
+   * 既読にする（Supabase更新）
+   */
+  const markAsRead = useCallback(async (notificationId: string) => {
+    // 楽観的UI更新
     setNotifications((prev) =>
       prev.map((notif) =>
         notif.id === notificationId ? { ...notif, is_read: true } : notif
       )
     );
-  };
+
+    // Supabase更新
+    if (isSupabaseConfigured && isAuthenticated) {
+      try {
+        const { error } = await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("id", notificationId);
+
+        if (error) {
+          console.error("Failed to mark notification as read:", error);
+          // ロールバック
+          await fetchPersonalNotifications();
+        }
+      } catch (err) {
+        console.error("Failed to mark notification as read:", err);
+      }
+    }
+  }, [isAuthenticated, fetchPersonalNotifications]);
 
   /**
-   * すべて既読にする
+   * すべて既読にする（Supabase更新）
    */
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(async () => {
+    if (!isAuthenticated || !user?.id) return;
+
+    // 楽観的UI更新
     setNotifications((prev) =>
       prev.map((notif) => ({ ...notif, is_read: true }))
     );
-  };
+
+    // Supabase更新
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false);
+
+        if (error) {
+          console.error("Failed to mark all notifications as read:", error);
+          // ロールバック
+          await fetchPersonalNotifications();
+        }
+      } catch (err) {
+        console.error("Failed to mark all notifications as read:", err);
+      }
+    }
+  }, [isAuthenticated, user?.id, fetchPersonalNotifications]);
 
   /**
-   * 通知削除
+   * 通知削除（Supabase削除）
    */
-  const deleteNotification = (notificationId: string) => {
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    // 楽観的UI更新
     setNotifications((prev) =>
       prev.filter((notif) => notif.id !== notificationId)
     );
-  };
+
+    // Supabase削除
+    if (isSupabaseConfigured && isAuthenticated) {
+      try {
+        const { error } = await supabase
+          .from("notifications")
+          .delete()
+          .eq("id", notificationId);
+
+        if (error) {
+          console.error("Failed to delete notification:", error);
+          // ロールバック
+          await fetchPersonalNotifications();
+        }
+      } catch (err) {
+        console.error("Failed to delete notification:", err);
+      }
+    }
+  }, [isAuthenticated, fetchPersonalNotifications]);
 
   /**
    * 未読数（個人通知のみ）
@@ -194,5 +247,6 @@ export function useNotifications() {
     badgeCount, // バッジ表示数（ログイン/ゲストで異なる）
     isGuest: !isAuthenticated, // ゲストユーザーかどうか
     hotPostsCount, // 人気投稿数
+    isLoading, // ローディング状態
   };
 }

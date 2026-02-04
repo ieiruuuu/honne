@@ -23,6 +23,7 @@ export default function NotificationsPage() {
     unreadCount,
     isGuest,
     hotPostsCount,
+    isLoading,
   } = useNotifications();
 
   const handleNotificationClick = (notificationId: string, postId: string) => {
@@ -80,8 +81,18 @@ export default function NotificationsPage() {
       <Header />
       
       <main className="container mx-auto max-w-2xl px-4 py-6">
-        {/* ゲストユーザー向けログインプロンプト */}
-        {isGuest && (
+        {/* ローディング状態 */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+              <p className="text-sm text-gray-500">読み込み中...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* ゲストユーザー向けログインプロンプト */}
+            {isGuest && (
           <Card className="mb-6 border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
@@ -298,6 +309,8 @@ export default function NotificationsPage() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </main>
 
