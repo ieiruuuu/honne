@@ -6,7 +6,6 @@ import { Button } from "./button";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import LogoImage from "@/logo.png";
 
 export function Header() {
   const router = useRouter();
@@ -20,7 +19,7 @@ export function Header() {
             className="flex items-center hover:opacity-80 transition-opacity"
           >
             <Image 
-              src={LogoImage}
+              src="/logo.png"
               alt="Honne Logo"
               height={35}
               width={35}
