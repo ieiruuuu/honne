@@ -7,53 +7,8 @@ const isSupabaseConfigured =
   process.env.NEXT_PUBLIC_SUPABASE_URL && 
   process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
 
-// 모크 데이터 (Supabase 미設정 시 사용)
-const mockPosts: Post[] = [
-  {
-    id: "1",
-    content: "3年目、システムエンジニア、年収450万円、手取り月28万円くらいです。同じ経験年数の方、どれくらいもらってますか？",
-    category: "年収・手取り",
-    nickname: "匿名太郎",
-    likes_count: 42,
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: "2",
-    content: "夏のボーナス、業績好調で4.5ヶ月分出ました！久々に嬉しい報告です。みなさんの会社はどうでしたか？",
-    category: "ボーナス報告",
-    nickname: "サラリーマン",
-    likes_count: 67,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: "3",
-    content: "残業月80時間、休日出勤あり、パワハラ日常茶飯事...これってブラック企業ですよね？判定お願いします。",
-    category: "ホワイト・ブラック判定",
-    nickname: "疲れた社員",
-    likes_count: 89,
-    created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-  },
-  {
-    id: "4",
-    content: "上司との人間関係に本当に悩んでいます。毎日のように小さなことで怒られて、精神的に限界です...",
-    category: "人間関係・上司",
-    nickname: "悩める社員",
-    likes_count: 34,
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-  },
-  {
-    id: "5",
-    content: "30代で未経験の業界に転職しました。給与は下がったけど、人間関係が良くて毎日が楽しいです。",
-    category: "転職のホンネ",
-    nickname: "転職成功者",
-    likes_count: 56,
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-];
-
 /**
  * 게시글 목록을 가져오고 실시간 업데이트를 구독하는 Hook
- * Supabase가 설정되지 않은 경우 모크 데이터를 반환합니다.
  * 
  * @param category - 필터링할 카테고리 (옵션)
  * @returns posts - 게시글 배열
@@ -71,16 +26,10 @@ export function usePosts(category?: Category) {
       setIsLoading(true);
       setError(null);
 
-      // Supabase가 설정되지 않은 경우 모크 데이터 사용
+      // Supabase가 설정되지 않은 경우
       if (!isSupabaseConfigured) {
-        await new Promise((resolve) => setTimeout(resolve, 500)); // 로딩 시뮬레이션
-        
-        // 카테고리 필터링
-        const filteredPosts = category 
-          ? mockPosts.filter(post => post.category === category)
-          : mockPosts;
-        
-        setPosts(filteredPosts);
+        console.warn("⚠️ Supabase is not configured. Please check environment variables.");
+        setPosts([]);
         setIsLoading(false);
         return;
       }
@@ -103,12 +52,8 @@ export function usePosts(category?: Category) {
       setPosts(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
-      console.error("Error fetching posts:", err);
-      // 에러 시에도 모크 데이터 표시 (필터링 적용)
-      const filteredPosts = category 
-        ? mockPosts.filter(post => post.category === category)
-        : mockPosts;
-      setPosts(filteredPosts);
+      console.error("❌ Error fetching posts:", err);
+      setPosts([]);
     } finally {
       setIsLoading(false);
     }
@@ -120,10 +65,12 @@ export function usePosts(category?: Category) {
 
     // Supabase가 설정되지 않은 경우 구독 스킵
     if (!isSupabaseConfigured) {
+      console.log("⚠️ Realtime subscription skipped (Supabase not configured)");
       return;
     }
 
     // 실시간 구독 설정
+    console.log("🔄 Setting up realtime subscription for posts...");
     const channel = supabase
       .channel("posts_channel")
       .on(
@@ -134,6 +81,7 @@ export function usePosts(category?: Category) {
           table: "posts",
         },
         (payload) => {
+          console.log("📡 Realtime update received:", payload.eventType);
           const newPost = payload.new as Post;
           const oldPost = payload.old as { id: string };
 
@@ -159,6 +107,7 @@ export function usePosts(category?: Category) {
 
     // 클린업
     return () => {
+      console.log("🧹 Cleaning up realtime subscription...");
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

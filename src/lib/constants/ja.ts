@@ -33,12 +33,16 @@ export const LABELS = {
   WELCOME_TITLE: "本音で語れる場所へようこそ",
   WELCOME_DESC: "社会人のための匿名コミュニティです。悩み、愚痴、質問を気軽に共有しましょう。",
   NO_POSTS: "まだ投稿がありません",
+  NO_POSTS_SUBTITLE: "最初の本音を聞かせてください！",
+  NO_POSTS_CTA: "今すぐ投稿する",
   NO_NOTIFICATIONS: "通知はありません",
   NO_SEARCH_RESULTS: "検索結果がありません",
   LOADING: "読み込み中...",
   SEARCH_PLACEHOLDER: "キーワードで検索...",
   MY_POSTS: "投稿履歴",
   MY_LIKED_POSTS: "いいねした投稿",
+  EMPTY_STATE_TITLE: "まだ何もありません",
+  EMPTY_STATE_SUBTITLE: "最初の一歩を踏み出しましょう！",
   
   // フォーム
   CONTENT_LABEL: "内容",
