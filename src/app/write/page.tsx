@@ -90,9 +90,19 @@ export default function WritePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log("📝 Submit button clicked");
+    console.log("Form data:", {
+      content: content.trim().substring(0, 50) + "...",
+      nickname: nickname.trim(),
+      category: category,
+    });
+
     if (!content.trim() || !nickname.trim() || !category) {
+      console.warn("⚠️ Validation failed: missing required fields");
       return;
     }
+
+    console.log("✅ Validation passed, calling createPost...");
 
     const result = await createPost({
       content: content.trim(),
@@ -100,11 +110,14 @@ export default function WritePage() {
       category: category as Category,
     });
 
+    console.log("📊 createPost result:", result);
+
     if (result) {
       // 下書き削除
       localStorage.removeItem(DRAFT_KEY);
       
       console.log("✅ Post created successfully:", result);
+      console.log("🔄 Navigating to home page...");
       
       // 홈으로 이동
       alert(SUCCESS_MESSAGES.POST_CREATED);
@@ -112,6 +125,9 @@ export default function WritePage() {
       
       // 강제 새로고침 (실시간 업데이트가 안 될 경우를 대비)
       router.refresh();
+    } else {
+      console.error("❌ Post creation failed - result is null");
+      console.error("Check error state:", error);
     }
   };
 

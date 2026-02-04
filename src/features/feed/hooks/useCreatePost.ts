@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Post, Category } from "@/types";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
   FEED_LABELS,
   FEED_ERROR_MESSAGES,
@@ -37,6 +38,7 @@ const isSupabaseConfigured =
  * @returns validationErrors - バリデーションエラーリスト
  */
 export function useCreatePost() {
+  const { user } = useAuthStore();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -103,6 +105,22 @@ export function useCreatePost() {
     setValidationErrors([]);
 
     try {
+      // ✅ 로그인 체크
+      if (!user?.id) {
+        const authError = "ログインが必要です。再度ログインしてください。";
+        console.error("❌ User not authenticated. user:", user);
+        setError(authError);
+        return null;
+      }
+
+      console.log("📝 Creating post with payload:", {
+        content: data.content.trim().substring(0, 50) + "...",
+        category: data.category,
+        nickname: data.nickname.trim(),
+        user_id: user.id,
+        likes_count: 0,
+      });
+
       if (!isSupabaseConfigured) {
         console.warn("⚠️ Supabase is not configured. Post creation simulated.");
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -117,6 +135,7 @@ export function useCreatePost() {
         };
       }
 
+      // ✅ user_id 추가
       const { data: newPost, error: insertError } = await supabase
         .from("posts")
         .insert([
@@ -124,20 +143,32 @@ export function useCreatePost() {
             content: data.content.trim(),
             category: data.category,
             nickname: data.nickname.trim(),
+            user_id: user.id,  // ✅ 현재 로그인한 사용자 ID
             likes_count: 0,
           },
         ])
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("❌ Supabase insert error:", insertError);
+        console.error("Error details:", {
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code,
+        });
+        throw insertError;
+      }
 
+      console.log("✅ Post created successfully in database:", newPost);
       return newPost;
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : FEED_ERROR_MESSAGES.POST_FAILED;
       setError(errorMessage);
-      console.error("Error creating post:", err);
+      console.error("❌ Error creating post:", err);
+      console.error("Full error object:", JSON.stringify(err, null, 2));
       return null;
     } finally {
       setIsCreating(false);
