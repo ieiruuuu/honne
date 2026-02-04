@@ -11,6 +11,7 @@ import { OnboardingModal } from "@/features/auth/components/OnboardingModal";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useNickname } from "@/features/user/hooks/useNickname";
 import { useMyPosts } from "@/features/user/hooks/useMyPosts";
+import { useUserStats } from "@/features/user/hooks/useUserStats";
 import { USER_LABELS } from "@/features/user/constants";
 import { AUTH_LABELS } from "@/features/auth/constants";
 import { ONBOARDING_LABELS } from "@/features/auth/components/onboarding-constants";
@@ -32,14 +33,17 @@ export default function MyPage() {
   const { myPosts, isLoading, filter, setFilter } = useMyPosts(
     isAuthenticated ? (user?.nickname || nickname) : nickname
   );
-
-  // 統計情報計算
-  const postsCount = myPosts.length;
-  const likesReceived = myPosts.reduce((sum, post) => sum + post.likes_count, 0);
-  const commentsReceived = myPosts.reduce(
-    (sum, post) => sum + (post.comments_count || 0),
-    0
+  
+  // 実際のDB統計情報を取得
+  const { stats } = useUserStats(
+    user?.id,
+    isAuthenticated ? (user?.nickname || nickname) : nickname
   );
+
+  // 統計情報（実際のDBカウント）
+  const postsCount = stats.postsCount;
+  const likesReceived = stats.likesReceived;
+  const commentsReceived = stats.commentsReceived;
 
   const handleRegenerateNickname = () => {
     if (confirm("ニックネームを変更しますか？")) {
