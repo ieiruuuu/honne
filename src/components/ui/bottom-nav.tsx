@@ -43,7 +43,7 @@ const navItems = [
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { unreadCount } = useNotifications();
+  const { badgeCount, isGuest } = useNotifications();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-inset-bottom">
@@ -52,12 +52,17 @@ export function BottomNav() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.path;
-            const showBadge = item.showBadge && unreadCount > 0;
+            const showBadge = item.showBadge && badgeCount > 0;
             
             // カテゴリー関連ページで活性化
             const isCategoryActive = 
               item.id === "category" && 
               (pathname === "/categories" || pathname.startsWith("/category/"));
+
+            // バッジ色：ログインユーザーは赤、ゲストは主橙
+            const badgeColorClass = isGuest 
+              ? "bg-orange-500" 
+              : "bg-red-500";
 
             return (
               <button
@@ -76,8 +81,11 @@ export function BottomNav() {
                     (isActive || isCategoryActive) && "stroke-[2.5]"
                   )} />
                   {showBadge && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount > 9 ? "9+" : unreadCount}
+                    <span className={cn(
+                      "absolute -top-1 -right-1 w-4 h-4 text-white text-[10px] font-bold rounded-full flex items-center justify-center",
+                      badgeColorClass
+                    )}>
+                      {badgeCount > 9 ? "9+" : badgeCount}
                     </span>
                   )}
                 </div>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Notification, Post } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { HOT_POST_THRESHOLD } from "../constants";
+import { HOT_POST_THRESHOLD, HOT_POST_HOURS } from "../constants";
+import { useAuthStore } from "@/store/useAuthStore";
 
 // Supabase 設定チェック
 const isSupabaseConfigured =
@@ -61,11 +62,13 @@ const mockNotifications: Notification[] = [
  * @returns unreadCount - 未読数
  */
 export function useNotifications() {
+  const { isAuthenticated } = useAuthStore();
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
   const [hotPosts, setHotPosts] = useState<Post[]>([]);
+  const [hotPostsCount, setHotPostsCount] = useState(0);
 
   /**
-   * 人気投稿を取得
+   * 人気投稿を取得（最近24時間以内、likes_count >= 閾値）
    */
   useEffect(() => {
     const fetchHotPosts = async () => {
@@ -92,22 +95,28 @@ export function useNotifications() {
           },
         ];
         setHotPosts(mockHotPosts);
+        setHotPostsCount(mockHotPosts.length);
         return;
       }
 
       try {
-        // likes_count が閾値以上の投稿を取得
+        // 最近24時間以内 & likes_count が閾値以上の投稿を取得
+        const twentyFourHoursAgo = new Date(Date.now() - HOT_POST_HOURS * 60 * 60 * 1000).toISOString();
+        
         const { data, error } = await supabase
           .from("posts")
           .select("*")
           .gte("likes_count", HOT_POST_THRESHOLD)
+          .gte("created_at", twentyFourHoursAgo)
           .order("likes_count", { ascending: false })
-          .limit(5);
+          .limit(10);
 
         if (error) throw error;
         setHotPosts(data || []);
+        setHotPostsCount(data?.length || 0);
       } catch (err) {
         console.error("Failed to fetch hot posts:", err);
+        setHotPostsCount(0);
       }
     };
 
@@ -148,9 +157,16 @@ export function useNotifications() {
   };
 
   /**
-   * 未読数
+   * 未読数（個人通知のみ）
    */
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const personalUnreadCount = notifications.filter((n) => !n.is_read && n.type !== "HOT_POST").length;
+
+  /**
+   * バッジ表示数
+   * - ログインユーザー: 個人通知の未読数
+   * - ゲストユーザー: 最近24時間の人気投稿数
+   */
+  const badgeCount = isAuthenticated ? personalUnreadCount : hotPostsCount;
 
   /**
    * 人気投稿通知を最上部に配置
@@ -174,6 +190,9 @@ export function useNotifications() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
-    unreadCount,
+    unreadCount: personalUnreadCount, // 個人通知の未読数
+    badgeCount, // バッジ表示数（ログイン/ゲストで異なる）
+    isGuest: !isAuthenticated, // ゲストユーザーかどうか
+    hotPostsCount, // 人気投稿数
   };
 }
