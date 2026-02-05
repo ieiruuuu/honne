@@ -21,6 +21,7 @@ export function usePosts(category?: Category) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 수동 refetch 함수
   const fetchPosts = async () => {
     try {
       setIsLoading(true);
@@ -30,7 +31,6 @@ export function usePosts(category?: Category) {
       if (!isSupabaseConfigured) {
         console.warn("⚠️ Supabase is not configured. Please check environment variables.");
         setPosts([]);
-        setIsLoading(false);
         return;
       }
 
@@ -49,13 +49,11 @@ export function usePosts(category?: Category) {
 
       if (fetchError) throw fetchError;
 
-      console.log(`✅ Fetched ${data?.length || 0} posts from Supabase`);
-      console.log("📊 Posts data:", data);
-
+      console.log(`✅ Refetched ${data?.length || 0} posts from Supabase`);
       setPosts(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
-      console.error("❌ Error fetching posts:", err);
+      console.error("❌ Error refetching posts:", err);
       setPosts([]);
     } finally {
       setIsLoading(false);
@@ -63,13 +61,73 @@ export function usePosts(category?: Category) {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    const abortController = new AbortController();
+
     // 초기 데이터 로드
-    fetchPosts();
+    const loadData = async () => {
+      if (!isMounted) return;
+      
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Supabase가 설정되지 않은 경우
+        if (!isSupabaseConfigured) {
+          console.warn("⚠️ Supabase is not configured. Please check environment variables.");
+          setPosts([]);
+          return;
+        }
+
+        // Supabase 쿼리
+        let query = supabase
+          .from("posts")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        // 카테고리 필터링 추가
+        if (category) {
+          query = query.eq("category", category);
+        }
+
+        const { data, error: fetchError } = await query;
+
+        if (!isMounted) return;
+
+        if (fetchError) throw fetchError;
+
+        console.log(`✅ Fetched ${data?.length || 0} posts from Supabase`);
+        console.log("📊 Posts data:", data);
+
+        setPosts(data || []);
+      } catch (err) {
+        if (!isMounted) return;
+        
+        // AbortError는 무시 (정상적인 cleanup)
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log("⚠️ Request aborted (component unmounted)");
+          return;
+        }
+        
+        setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
+        console.error("❌ Error fetching posts:", err);
+        setPosts([]);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
 
     // Supabase가 설정되지 않은 경우 구독 스킵
     if (!isSupabaseConfigured) {
       console.log("⚠️ Realtime subscription skipped (Supabase not configured)");
-      return;
+      return () => {
+        isMounted = false;
+        abortController.abort();
+      };
     }
 
     // 실시간 구독 설정
@@ -84,6 +142,8 @@ export function usePosts(category?: Category) {
           table: "posts",
         },
         (payload) => {
+          if (!isMounted) return;
+          
           console.log("📡 Realtime update received:", payload.eventType);
           const newPost = payload.new as Post;
           const oldPost = payload.old as { id: string };
@@ -111,6 +171,8 @@ export function usePosts(category?: Category) {
     // 클린업
     return () => {
       console.log("🧹 Cleaning up realtime subscription...");
+      isMounted = false;
+      abortController.abort();
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

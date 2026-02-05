@@ -1,11 +1,8 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { LABELS } from "@/lib/constants/ja";
-import { Button } from "./button";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 
 export function Header() {
   const router = useRouter();
@@ -18,26 +15,24 @@ export function Header() {
             href="/"
             className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <Image 
+            <img 
               src="/logo.png"
               alt="Honne Logo"
-              height={35}
-              width={35}
+              width="35"
+              height="35"
               className="object-contain"
-              priority
             />
           </Link>
         </div>
         
         <nav className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon"
+          <button
+            type="button"
             onClick={() => router.push("/search")}
+            className="inline-flex items-center justify-center h-10 w-10 rounded-md text-sm font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:pointer-events-none disabled:opacity-50"
           >
             <Search className="h-5 w-5" />
-            <span className="sr-only">{LABELS.SEARCH}</span>
-          </Button>
+          </button>
         </nav>
       </div>
     </header>

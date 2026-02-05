@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePost } from "@/features/posts/hooks/usePost";
-import { useComments } from "@/features/posts/hooks/useComments";
+import { useComments, Comment } from "@/features/posts/hooks/useComments";
 import { useLike } from "@/features/posts/hooks/useLike";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { AuthModal } from "@/features/auth/components/AuthModal";
+import { CommentItem } from "@/features/posts/components/CommentItem";
 import { POST_DETAIL_LABELS } from "@/features/posts/constants";
 import { LABELS, CATEGORY_COLORS } from "@/lib/constants/ja";
 import { 
@@ -28,6 +29,8 @@ import {
   Shield,
   Clock,
   Brain,
+  ThumbsUp,
+  Reply,
   LucideIcon
 } from "lucide-react";
 import { useState } from "react";
@@ -83,7 +86,7 @@ export default function PostDetailPage() {
   const postId = params.id as string;
   
   const { post, isLoading: postLoading, error: postError } = usePost(postId);
-  const { comments, count: commentCount, isLoading: commentsLoading } = useComments(postId);
+  const { comments, count: commentCount, isLoading: commentsLoading, createComment } = useComments(postId);
   const { user, isAuthenticated } = useAuth();
   const { likesCount, isLiked, toggleLike } = useLike(
     postId,
@@ -92,6 +95,9 @@ export default function PostDetailPage() {
   );
   const [comment, setComment] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null); // 返信対象コメントID
+  const [replyContent, setReplyContent] = useState(""); // 返信内容
   
   // 統合ローディング状態
   const isLoading = postLoading;
@@ -106,7 +112,7 @@ export default function PostDetailPage() {
     await toggleLike();
   };
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // ログインチェック
@@ -114,17 +120,129 @@ export default function PostDetailPage() {
       setShowAuthModal(true);
       return;
     }
+
+    // ユーザーIDチェック
+    if (!user?.id) {
+      console.error('❌ User ID is missing');
+      alert('ログイン情報が見つかりません。再度ログインしてください。');
+      setShowAuthModal(true);
+      return;
+    }
     
-    if (!comment.trim()) return;
-    
-    // TODO: Supabase 連携
-    alert(`コメントを投稿しました: ${comment}`);
-    setComment("");
+    // コメント内容チェック
+    if (!comment.trim()) {
+      alert('コメントを入力してください');
+      return;
+    }
+
+    // 投稿データチェック
+    if (!post) {
+      console.error('❌ Post data is missing');
+      alert('投稿情報の取得に失敗しました');
+      return;
+    }
+
+    // ニックネーム決定ロジック
+    // 投稿者が自分の投稿にコメントする場合: 投稿時のニックネーム使用
+    // 他のユーザーがコメントする場合: 各自の匿名ニックネーム使用
+    const isPostAuthor = post.user_id === user.id;
+    const commentNickname = isPostAuthor ? post.nickname : (user.nickname || '名無し');
+
+    console.log('👤 Comment author info:', {
+      isPostAuthor,
+      postAuthorId: post.user_id,
+      commenterId: user.id,
+      postNickname: post.nickname,
+      userNickname: user.nickname,
+      finalNickname: commentNickname,
+    });
+
+    setIsSubmittingComment(true);
+
+    try {
+      console.log('📝 Submitting comment:', {
+        post_id: postId,
+        user_id: user.id,
+        nickname: commentNickname,
+        content: comment.trim().substring(0, 50) + '...',
+      });
+
+      const result = await createComment({
+        post_id: postId,
+        user_id: user.id,
+        content: comment.trim(),
+        nickname: commentNickname,
+      });
+
+      if (result.success) {
+        console.log('✅ Comment submitted successfully');
+        alert('コメントを投稿しました！');
+        setComment("");
+      } else {
+        console.error('❌ Comment submission failed:', result.error);
+        alert(`コメントの投稿に失敗しました: ${result.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Comment submission exception:', err);
+      alert('コメントの投稿中にエラーが発生しました');
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   const handleCommentInputClick = () => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
+    }
+  };
+
+  /**
+   * 返信送信
+   */
+  const handleReplySubmit = async (parentId: string) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (!user?.id || !post) {
+      alert('ログイン情報が見つかりません');
+      return;
+    }
+
+    if (!replyContent.trim()) {
+      alert('返信内容を入力してください');
+      return;
+    }
+
+    const isPostAuthor = post.user_id === user.id;
+    const commentNickname = isPostAuthor ? post.nickname : (user.nickname || '名無し');
+
+    setIsSubmittingComment(true);
+
+    try {
+      const result = await createComment({
+        post_id: postId,
+        user_id: user.id,
+        content: replyContent.trim(),
+        nickname: commentNickname,
+        parent_id: parentId, // 親コメントIDを指定
+      });
+
+      if (result.success) {
+        console.log('✅ Reply submitted successfully');
+        alert('返信を投稿しました！');
+        setReplyContent("");
+        setReplyingTo(null); // 返信モードを閉じる
+      } else {
+        console.error('❌ Reply submission failed:', result.error);
+        alert(`返信の投稿に失敗しました: ${result.error}`);
+      }
+    } catch (err) {
+      console.error('❌ Reply submission exception:', err);
+      alert('返信の投稿中にエラーが発生しました');
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -266,6 +384,17 @@ export default function PostDetailPage() {
               {post.content}
             </p>
 
+            {/* 画像表示 */}
+            {post.image_url && (
+              <div className="mb-4">
+                <img
+                  src={post.image_url}
+                  alt="投稿画像"
+                  className="w-full h-auto max-h-96 object-cover rounded-lg"
+                />
+              </div>
+            )}
+
             <div className="flex gap-4 pt-4 border-t">
               <Button
                 variant="ghost"
@@ -315,24 +444,42 @@ export default function PostDetailPage() {
           ) : (
             <div className="space-y-3">
               {comments.map((c) => (
-                <Card key={c.id}>
-                  <CardContent className="pt-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                        {c.nickname.charAt(0)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-medium">{c.nickname}</span>
-                          <span className="text-xs text-gray-500">{timeAgo(c.created_at)}</span>
-                        </div>
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {c.content}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  postAuthorId={post?.user_id}
+                  postNickname={post?.nickname}
+                  userId={user?.id}
+                  isAuthenticated={isAuthenticated}
+                  onReply={async (parentId, content) => {
+                    // 返信処理
+                    if (!user?.id || !post) return;
+                    
+                    const isPostAuthor = post.user_id === user.id;
+                    const commentNickname = isPostAuthor ? post.nickname : (user.nickname || '名無し');
+                    
+                    setIsSubmittingComment(true);
+                    try {
+                      const result = await createComment({
+                        post_id: postId,
+                        user_id: user.id,
+                        content: content,
+                        nickname: commentNickname,
+                        parent_id: parentId,
+                      });
+
+                      if (result.success) {
+                        alert('返信を投稿しました！');
+                      } else {
+                        alert(`返信の投稿に失敗しました: ${result.error}`);
+                      }
+                    } finally {
+                      setIsSubmittingComment(false);
+                    }
+                  }}
+                  onAuthRequired={() => setShowAuthModal(true)}
+                  depth={0}
+                />
               ))}
             </div>
           )}
@@ -378,9 +525,22 @@ export default function PostDetailPage() {
                 />
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-400">{comment.length}/500</span>
-                  <Button type="submit" disabled={!comment.trim()} className="gap-2">
-                    <Send className="w-4 h-4" />
-                    {LABELS.POST}
+                  <Button 
+                    type="submit" 
+                    disabled={!comment.trim() || isSubmittingComment} 
+                    className="gap-2"
+                  >
+                    {isSubmittingComment ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        投稿中...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        {LABELS.POST}
+                      </>
+                    )}
                   </Button>
                 </div>
               </form>

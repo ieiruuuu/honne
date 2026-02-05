@@ -14,7 +14,7 @@ interface AuthModalProps {
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const { loginWithLine, signUpWithEmail, signInWithEmail, error } = useAuth();
   
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup'>('signup'); // ✅ デフォルトを'signup'に変更
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -48,18 +48,41 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setLocalError(null);
     setSuccessMessage(null);
 
-    // バリデーション
-    if (!validateEmail(email)) {
+    // 強化されたバリデーション
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    // 空文字チェック
+    if (!trimmedEmail) {
+      setLocalError('メールアドレスを入力してください');
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setLocalError('パスワードを入力してください');
+      return;
+    }
+
+    // メール形式チェック
+    if (!validateEmail(trimmedEmail)) {
       setLocalError(AUTH_LABELS.INVALID_EMAIL);
       return;
     }
 
-    if (password.length < 6) {
-      setLocalError(AUTH_LABELS.PASSWORD_TOO_SHORT);
+    // パスワード長チェック (Supabase最小: 6文字)
+    if (trimmedPassword.length < 6) {
+      setLocalError('パスワードは6文字以上で入力してください');
       return;
     }
 
-    if (mode === 'signup' && password !== passwordConfirm) {
+    // パスワード最大長チェック
+    if (trimmedPassword.length > 72) {
+      setLocalError('パスワードは72文字以下で入力してください');
+      return;
+    }
+
+    // 会員登録時のパスワード確認
+    if (mode === 'signup' && trimmedPassword !== passwordConfirm.trim()) {
       setLocalError(AUTH_LABELS.PASSWORD_MISMATCH);
       return;
     }
@@ -68,7 +91,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     try {
       if (mode === 'signup') {
-        const result = await signUpWithEmail(email, password);
+        console.log('📝 Signup attempt:', { email: trimmedEmail, passwordLength: trimmedPassword.length });
+        const result = await signUpWithEmail(trimmedEmail, trimmedPassword);
         if (result.success) {
           if (result.needsEmailConfirmation) {
             setSuccessMessage(AUTH_LABELS.EMAIL_CONFIRMATION_REQUIRED);
@@ -78,17 +102,30 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             setTimeout(() => onClose(), 1500);
           }
         } else {
+          console.error('❌ Signup failed:', result.error);
           setLocalError(result.error || AUTH_LABELS.SIGNUP_ERROR);
         }
       } else {
-        const result = await signInWithEmail(email, password);
+        console.log('🔑 Login attempt:', { email: trimmedEmail, passwordLength: trimmedPassword.length });
+        const result = await signInWithEmail(trimmedEmail, trimmedPassword);
         if (result.success) {
           setSuccessMessage(AUTH_LABELS.LOGIN_SUCCESS);
           setTimeout(() => onClose(), 1500);
         } else {
-          setLocalError(result.error || AUTH_LABELS.LOGIN_ERROR);
+          console.error('❌ Login failed:', result.error);
+          
+          // "Invalid login credentials"の場合、会員登録を提案
+          if (result.error?.includes('Invalid login credentials') || 
+              result.error?.includes('メールアドレスまたはパスワードが正しくありません')) {
+            setLocalError('メールアドレスまたはパスワードが正しくありません。\n初めての方は下の「新規登録」から会員登録してください。');
+          } else {
+            setLocalError(result.error || AUTH_LABELS.LOGIN_ERROR);
+          }
         }
       }
+    } catch (err) {
+      console.error('❌ Auth exception:', err);
+      setLocalError('認証中にエラーが発生しました。もう一度お試しください。');
     } finally {
       setIsLoading(false);
     }

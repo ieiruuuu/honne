@@ -43,24 +43,49 @@ export function useUserStats(userId?: string, nickname?: string) {
 
       console.log("📊 Fetching user stats...", { userId, nickname });
 
-      // 1. 投稿数を取得（ニックネームで検索）
-      const { count: postsCount } = await supabase
-        .from("posts")
-        .select("*", { count: "exact", head: true })
-        .eq("nickname", nickname || "");
-
-      // 2. 自分の投稿を取得（いいね数・コメント数集計用）
-      const { data: userPosts } = await supabase
-        .from("posts")
-        .select("id, likes_count")
-        .eq("nickname", nickname || "");
+      // ✅ Promise.all で並列実行（パフォーマンス最適化）
+      const [
+        { count: postsCount },
+        { data: userPosts },
+        likedPostsResult,
+      ] = await Promise.all([
+        // 1. 投稿数を取得（user_id または nickname で検索）
+        userId
+          ? supabase
+              .from("posts")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", userId)
+          : supabase
+              .from("posts")
+              .select("*", { count: "exact", head: true })
+              .eq("nickname", nickname || ""),
+        
+        // 2. 自分の投稿を取得（いいね数・コメント数集計用）
+        userId
+          ? supabase
+              .from("posts")
+              .select("id, likes_count")
+              .eq("user_id", userId)
+          : supabase
+              .from("posts")
+              .select("id, likes_count")
+              .eq("nickname", nickname || ""),
+        
+        // 3. 自分がいいねした投稿数（user_id で検索）
+        userId
+          ? supabase
+              .from("post_likes")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", userId)
+          : Promise.resolve({ count: 0 }),
+      ]);
 
       const postIds = userPosts?.map((p) => p.id) || [];
 
-      // 3. 受け取ったいいね数（自分の投稿の likes_count 合計）
+      // 4. 受け取ったいいね数（自分の投稿の likes_count 合計）
       const likesReceived = userPosts?.reduce((sum, post) => sum + (post.likes_count || 0), 0) || 0;
 
-      // 4. 受け取ったコメント数（自分の投稿へのコメント数）
+      // 5. 受け取ったコメント数（自分の投稿へのコメント数）
       let commentsReceived = 0;
       if (postIds.length > 0) {
         const { count: commentsCount } = await supabase
@@ -70,15 +95,7 @@ export function useUserStats(userId?: string, nickname?: string) {
         commentsReceived = commentsCount || 0;
       }
 
-      // 5. 自分がいいねした投稿数（user_id で検索）
-      let likedPostsCount = 0;
-      if (userId) {
-        const { count: likedCount } = await supabase
-          .from("post_likes")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId);
-        likedPostsCount = likedCount || 0;
-      }
+      const likedPostsCount = likedPostsResult.count || 0;
 
       console.log("✅ User stats loaded:", {
         postsCount: postsCount || 0,

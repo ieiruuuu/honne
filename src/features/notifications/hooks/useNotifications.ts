@@ -61,7 +61,11 @@ export function useNotifications() {
    */
   const fetchHotPosts = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      console.warn("⚠️ Supabase is not configured");
+      // ログ削減: 初回のみ警告
+      if (!sessionStorage.getItem('supabase-config-warned')) {
+        console.warn("⚠️ Supabase is not configured");
+        sessionStorage.setItem('supabase-config-warned', 'true');
+      }
       setHotPosts([]);
       setHotPostsCount(0);
       return;

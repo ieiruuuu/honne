@@ -11,7 +11,9 @@ import { OnboardingModal } from "@/features/auth/components/OnboardingModal";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useNickname } from "@/features/user/hooks/useNickname";
 import { useMyPosts } from "@/features/user/hooks/useMyPosts";
+import { useLikedPosts } from "@/features/user/hooks/useLikedPosts";
 import { useUserStats } from "@/features/user/hooks/useUserStats";
+import { useProfile } from "@/features/user/hooks/useProfile";
 import { USER_LABELS } from "@/features/user/constants";
 import { AUTH_LABELS } from "@/features/auth/constants";
 import { ONBOARDING_LABELS } from "@/features/auth/components/onboarding-constants";
@@ -28,14 +30,29 @@ export default function MyPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"posts" | "liked">("posts");
+  const [mounted, setMounted] = useState(false);
 
-  const { nickname, regenerateNickname } = useNickname();
+  // Hydration 에러 방지
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { nickname } = useNickname();
+  
+  // ✅ プロフィール情報を取得
+  const { profile } = useProfile(user?.id);
+  
+  // ✅ user_id を優先的に使用
   const { myPosts, isLoading, filter, setFilter } = useMyPosts(
+    user?.id,
     isAuthenticated ? (user?.nickname || nickname) : nickname
   );
   
+  // ✅ いいねした投稿を取得
+  const { likedPosts, isLoading: likedPostsLoading } = useLikedPosts(user?.id);
+  
   // 実際のDB統計情報を取得
-  const { stats } = useUserStats(
+  const { stats, isLoading: statsLoading } = useUserStats(
     user?.id,
     isAuthenticated ? (user?.nickname || nickname) : nickname
   );
@@ -44,13 +61,6 @@ export default function MyPage() {
   const postsCount = stats.postsCount;
   const likesReceived = stats.likesReceived;
   const commentsReceived = stats.commentsReceived;
-
-  const handleRegenerateNickname = () => {
-    if (confirm("ニックネームを変更しますか？")) {
-      regenerateNickname();
-      alert(USER_LABELS.NICKNAME_REGENERATED);
-    }
-  };
 
   // オンボーディングチェック
   useEffect(() => {
@@ -81,8 +91,8 @@ export default function MyPage() {
     }
   };
 
-  // 認証チェック中のローディング
-  if (authLoading) {
+  // Hydration 完了 & 認証チェック中のローディング
+  if (!mounted || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 pb-16">
         <Header />
@@ -179,22 +189,22 @@ export default function MyPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-2xl font-medium">
-                {user?.nickname ? user.nickname.charAt(0) : "匿"}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {user?.nickname || nickname}
-                  </h2>
-                  <button
-                    onClick={handleRegenerateNickname}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                    title={USER_LABELS.REGENERATE_NICKNAME}
-                  >
-                    <RefreshCw className="w-4 h-4 text-gray-500" />
-                  </button>
+              {/* アバター画像 */}
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="Avatar"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-blue-200"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-2xl font-medium">
+                  {user?.nickname ? user.nickname.charAt(0) : "匿"}
                 </div>
+              )}
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {profile?.nickname || user?.nickname || nickname}
+                </h2>
                 <p className="text-sm text-gray-500">
                   {user?.email || "匿名ユーザー"}
                 </p>
@@ -310,28 +320,51 @@ export default function MyPage() {
         )}
 
         {/* 投稿一覧 */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-          </div>
-        ) : myPosts.length > 0 ? (
-          <div className="space-y-4">
-            {myPosts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-              />
-            ))}
-          </div>
+        {activeTab === "posts" ? (
+          // 自分の投稿
+          isLoading || statsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-500">読み込み中...</p>
+            </div>
+          ) : myPosts.length > 0 ? (
+            <div className="space-y-4">
+              {myPosts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+              <p className="text-gray-500 mb-4">まだ投稿がありません</p>
+              <p className="text-sm text-gray-400 mb-6">
+                最初の投稿を書いてみましょう
+              </p>
+              <Button onClick={() => router.push("/write")}>投稿する</Button>
+            </div>
+          )
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500 mb-4">
-              {activeTab === "posts"
-                ? "まだ投稿がありません"
-                : "まだいいねした投稿がありません"}
-            </p>
-            <Button onClick={() => router.push("/write")}>投稿する</Button>
-          </div>
+          // いいねした投稿
+          likedPostsLoading || statsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-500">読み込み中...</p>
+            </div>
+          ) : likedPosts.length > 0 ? (
+            <div className="space-y-4">
+              {likedPosts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+              <Heart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p className="text-gray-500 mb-4">まだいいねした投稿がありません</p>
+              <p className="text-sm text-gray-400 mb-6">
+                気に入った投稿に💖いいねしてみましょう
+              </p>
+              <Button onClick={() => router.push("/")}>投稿を見る</Button>
+            </div>
+          )
         )}
       </main>
 

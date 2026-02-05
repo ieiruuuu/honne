@@ -124,6 +124,17 @@ export function PostCard({ post }: PostCardProps) {
         <p className="text-base leading-relaxed whitespace-pre-wrap">
           {post.content}
         </p>
+        {/* 画像表示 */}
+        {post.image_url && (
+          <div className="mt-3">
+            <img
+              src={post.image_url}
+              alt="投稿画像"
+              className="w-full h-auto max-h-96 object-cover rounded-lg"
+              loading="lazy"
+            />
+          </div>
+        )}
       </CardContent>
       <CardFooter className="flex gap-4 pt-0">
         <Button 

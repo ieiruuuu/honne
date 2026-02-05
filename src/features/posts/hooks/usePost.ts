@@ -22,7 +22,7 @@ export function usePost(postId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPost = useCallback(async () => {
+  const fetchPost = useCallback(async (signal?: AbortSignal) => {
     try {
       console.log("🔍 Fetching post with ID:", postId);
       setIsLoading(true);
@@ -43,6 +43,12 @@ export function usePost(postId: string) {
         
         setError("SUPABASE_NOT_CONFIGURED");
         setIsLoading(false);
+        return;
+      }
+
+      // コンポーネントがアンマウントされた場合は中止
+      if (signal?.aborted) {
+        console.log("⚠️ Request aborted (component unmounted)");
         return;
       }
 
@@ -83,6 +89,12 @@ export function usePost(postId: string) {
         return;
       }
 
+      // コンポーネントがアンマウントされた場合は中止
+      if (signal?.aborted) {
+        console.log("⚠️ Request aborted before setting state");
+        return;
+      }
+
       console.log("✅ Post loaded from Supabase:", data);
       console.log("   Post ID:", data?.id);
       console.log("   Category:", data?.category);
@@ -90,18 +102,37 @@ export function usePost(postId: string) {
       
       setPost(data as Post);
     } catch (err) {
+      // AbortError は無視
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log("⚠️ Fetch aborted (component unmounted)");
+        return;
+      }
+
+      // コンポーネントがアンマウントされた場合は状態を更新しない
+      if (signal?.aborted) {
+        return;
+      }
+
       console.error("❌ Error fetching post:", err);
       console.error("   Error type:", err instanceof Error ? err.constructor.name : typeof err);
       console.error("   Error message:", err instanceof Error ? err.message : String(err));
       
       setError(err instanceof Error ? err.message : "投稿の取得に失敗しました");
     } finally {
-      setIsLoading(false);
+      // コンポーネントがマウントされている場合のみ更新
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [postId]);
 
   useEffect(() => {
-    fetchPost();
+    const abortController = new AbortController();
+    fetchPost(abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
   }, [fetchPost]);
 
   return { post, isLoading, error };

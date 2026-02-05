@@ -5,6 +5,7 @@ import { Header } from "@/components/ui/header";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { LABELS } from "@/lib/constants/ja";
 import { 
   ArrowLeft, 
@@ -18,10 +19,11 @@ import {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { logout } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm("ログアウトしますか？")) {
-      // TODO: 실제 로그아웃 처리
+      await logout();
       alert("ログアウトしました");
       router.push("/");
     }

@@ -11,6 +11,7 @@ interface CreatePostData {
   content: string;
   category: Category;
   nickname: string;
+  image_url?: string; // 画像URL (オプション)
 }
 
 interface ValidationError {
@@ -113,40 +114,41 @@ export function useCreatePost() {
         return null;
       }
 
+      // Supabase 설정 확인
+      if (!isSupabaseConfigured) {
+        const configError = "Supabase設定が完了していません。.env.localファイルを確認してください。";
+        console.error("❌", configError);
+        console.error("📝 詳細: URGENT_FIX_ENV.md ファイルを参照してください");
+        setError(configError);
+        return null;
+      }
+
       console.log("📝 Creating post with payload:", {
         content: data.content.trim().substring(0, 50) + "...",
         category: data.category,
         nickname: data.nickname.trim(),
         user_id: user.id,
         likes_count: 0,
+        image_url: data.image_url || null,
       });
 
-      if (!isSupabaseConfigured) {
-        console.warn("⚠️ Supabase is not configured. Post creation simulated.");
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        // 開発環境では成功として処理
-        return {
-          id: "mock-" + Date.now(),
-          content: data.content.trim(),
-          category: data.category,
-          nickname: data.nickname.trim(),
-          likes_count: 0,
-          created_at: new Date().toISOString(),
-        };
+      // ✅ user_id と image_url 追加
+      const insertPayload: any = {
+        content: data.content.trim(),
+        category: data.category,
+        nickname: data.nickname.trim(),
+        user_id: user.id,  // ✅ 現在ログイン中のユーザーID
+        likes_count: 0,
+      };
+
+      // 画像URLがあれば追加
+      if (data.image_url) {
+        insertPayload.image_url = data.image_url;
       }
 
-      // ✅ user_id 추가
       const { data: newPost, error: insertError } = await supabase
         .from("posts")
-        .insert([
-          {
-            content: data.content.trim(),
-            category: data.category,
-            nickname: data.nickname.trim(),
-            user_id: user.id,  // ✅ 현재 로그인한 사용자 ID
-            likes_count: 0,
-          },
-        ])
+        .insert([insertPayload])
         .select()
         .single();
 

@@ -6,8 +6,10 @@ interface AuthStore {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  sessionChecked: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
+  setSessionChecked: (checked: boolean) => void;
   logout: () => void;
 }
 
@@ -21,22 +23,28 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      sessionChecked: false,
 
       setUser: (user) =>
         set({
           user,
           isAuthenticated: !!user,
           isLoading: false,
+          sessionChecked: true,
         }),
 
       setLoading: (loading) =>
         set({ isLoading: loading }),
+
+      setSessionChecked: (checked) =>
+        set({ sessionChecked: checked }),
 
       logout: () =>
         set({
           user: null,
           isAuthenticated: false,
           isLoading: false,
+          sessionChecked: true,
         }),
     }),
     {

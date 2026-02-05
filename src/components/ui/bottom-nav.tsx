@@ -1,41 +1,42 @@
 "use client";
 
-import { Home, Bell, PenSquare, User, Grid3x3 } from "lucide-react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LABELS } from "@/lib/constants/ja";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/features/notifications/hooks/useNotifications";
 
+// Hydration エラー防止のためのハードコーディングされたラベル
+// カスタム手描きPNGアイコンを使用
 const navItems = [
   {
     id: "home",
-    label: LABELS.HOME,
-    icon: Home,
+    label: "ホーム",
+    iconPath: "/home.png",
     path: "/",
-  },
-  {
-    id: "notifications",
-    label: LABELS.NOTIFICATIONS,
-    icon: Bell,
-    path: "/notifications",
-    showBadge: true,
-  },
-  {
-    id: "write",
-    label: LABELS.WRITE,
-    icon: PenSquare,
-    path: "/write",
   },
   {
     id: "category",
     label: "カテゴリー",
-    icon: Grid3x3,
-    path: "/categories", // 독립 페이지로 변경
+    iconPath: "/category.png",
+    path: "/categories",
+  },
+  {
+    id: "write",
+    label: "投稿",
+    iconPath: "/write.png",
+    path: "/write",
+  },
+  {
+    id: "notifications",
+    label: "お知らせ",
+    iconPath: "/bell.png",
+    path: "/notifications",
+    showBadge: true,
   },
   {
     id: "mypage",
-    label: LABELS.MY_PAGE,
-    icon: User,
+    label: "マイページ",
+    iconPath: "/mypage.png",
     path: "/mypage",
   },
 ];
@@ -50,7 +51,6 @@ export function BottomNav() {
       <div className="container mx-auto max-w-2xl">
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
-            const Icon = item.icon;
             const isActive = pathname === item.path;
             const showBadge = item.showBadge && badgeCount > 0;
             
@@ -59,27 +59,50 @@ export function BottomNav() {
               item.id === "category" && 
               (pathname === "/categories" || pathname.startsWith("/category/"));
 
-            // バッジ色：ログインユーザーは赤、ゲストは主橙
+            // バッジ色：ログインユーザーは赤、ゲストは橙
             const badgeColorClass = isGuest 
               ? "bg-orange-500" 
               : "bg-red-500";
+
+            // アイコンサイズ：投稿ボタンは28px、他は24px（統一感を保ちつつ中央を軽く強調）
+            const iconSize = item.id === "write" ? 28 : 24;
 
             return (
               <button
                 key={item.id}
                 onClick={() => router.push(item.path)}
                 className={cn(
-                  "flex flex-col items-center justify-center flex-1 h-full transition-colors relative",
-                  isActive || isCategoryActive
-                    ? "text-gray-900"
-                    : "text-gray-400 hover:text-gray-600"
+                  "flex flex-col items-center justify-center flex-1 h-full transition-all relative",
+                  // Active状態の色（全メニュー統一）
+                  (isActive || isCategoryActive)
+                    ? "text-blue-600"
+                    : "text-gray-500 hover:text-gray-700"
                 )}
               >
-                <div className="relative">
-                  <Icon className={cn(
-                    "w-6 h-6 mb-1", 
-                    (isActive || isCategoryActive) && "stroke-[2.5]"
-                  )} />
+                {/* アイコンコンテナ：全メニュー同一スタイル */}
+                <div className="relative flex flex-col items-center">
+                  {/* カスタム手描きPNGアイコン */}
+                  <div className={cn(
+                    "mb-1 transition-all relative",
+                    // Active状態のみdrop-shadow適用
+                    (isActive || isCategoryActive) && "drop-shadow-md"
+                  )}>
+                    <Image
+                      src={item.iconPath}
+                      alt={item.label}
+                      width={iconSize}
+                      height={iconSize}
+                      className={cn(
+                        "transition-all",
+                        "object-contain",
+                        // Active状態：完全な不透明度、非Active：60%
+                        (isActive || isCategoryActive)
+                          ? "opacity-100"
+                          : "opacity-60 hover:opacity-80"
+                      )}
+                      priority={item.id === "home"} // ホームアイコンは優先読み込み
+                    />
+                  </div>
                   {showBadge && (
                     <span className={cn(
                       "absolute -top-1 -right-1 w-4 h-4 text-white text-[10px] font-bold rounded-full flex items-center justify-center",
@@ -89,8 +112,10 @@ export function BottomNav() {
                     </span>
                   )}
                 </div>
+                {/* 텍스트 라벨：전체 통일 */}
                 <span className={cn(
-                  "text-xs", 
+                  "text-xs transition-all mt-0.5", 
+                  // Active状態のみfont-medium
                   (isActive || isCategoryActive) && "font-medium"
                 )}>
                   {item.label}

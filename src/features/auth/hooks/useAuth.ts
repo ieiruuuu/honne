@@ -29,29 +29,61 @@ const generateRandomNickname = (): string => {
  * - セッション管理
  */
 export function useAuth() {
-  const { user, isAuthenticated, setUser, setLoading, logout: storeLogout } = useAuthStore();
+  const { user, isAuthenticated, sessionChecked, setUser, setLoading, setSessionChecked, logout: storeLogout } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * 初期セッションチェック
+   * 初期セッションチェック（全体で1回のみ実行）
    */
   useEffect(() => {
-    checkSession();
+    let isMounted = true;
+
+    const initSession = async () => {
+      // 既にチェック済みの場合はスキップ
+      if (sessionChecked) {
+        return;
+      }
+
+      if (!isMounted) return;
+      
+      await checkSession();
+    };
+
+    initSession();
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionChecked]); // sessionChecked を依存配列に追加
 
   /**
    * セッション確認
    */
   const checkSession = async () => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-
+    const abortController = new AbortController();
+    
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!isSupabaseConfigured) {
+        console.warn("⚠️ Supabase is not configured. Skipping session check.");
+        setUser(null);
+        return;
+      }
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      // AbortController でキャンセルされた場合は処理を中断
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      if (sessionError) {
+        console.error('❌ Session check error:', sessionError);
+        setUser(null);
+        return;
+      }
 
       if (session?.user) {
         const userData: User = {
@@ -63,14 +95,35 @@ export function useAuth() {
           created_at: session.user.created_at,
         };
 
+        console.log("✅ Session found. User ID:", userData.id);
         setUser(userData);
       } else {
+        // Guest モード (ログ削減のため一度だけ表示)
+        if (!sessionStorage.getItem('guest-mode-logged')) {
+          console.log("ℹ️ No active session found. Guest mode enabled.");
+          sessionStorage.setItem('guest-mode-logged', 'true');
+        }
         setUser(null);
       }
     } catch (err) {
-      console.error('Session check error:', err);
+      // AbortError は無視
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log("⚠️ Session check aborted");
+        return;
+      }
+
+      // signal が中断された場合は状態を更新しない
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      console.error('❌ Session check exception:', err);
+      setUser(null);
     } finally {
-      setLoading(false);
+      // signal が中断されていない場合のみローディング解除
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
@@ -98,26 +151,44 @@ export function useAuth() {
    */
   const signUpWithEmail = async (email: string, password: string) => {
     if (!isSupabaseConfigured) {
-      // モック認証
-      const mockUser: User = {
-        id: 'mock-' + Date.now(),
-        email,
-        nickname: generateRandomNickname(),
-        provider: 'email',
-        created_at: new Date().toISOString(),
-      };
-      setUser(mockUser);
-      return { success: true, needsEmailConfirmation: false };
+      const error = "Supabase設定が必要です。.env.localファイルを確認してください。";
+      console.error("❌", error);
+      setError(error);
+      return { success: false, error };
     }
 
     try {
       setError(null);
 
+      // クライアント側バリデーション
+      const trimmedEmail = email.trim();
+      const trimmedPassword = password.trim();
+
+      if (!trimmedEmail || !trimmedPassword) {
+        const error = 'メールアドレスとパスワードを入力してください';
+        console.error('❌ Validation failed:', error);
+        setError(error);
+        return { success: false, error };
+      }
+
+      if (trimmedPassword.length < 6) {
+        const error = 'パスワードは6文字以上で入力してください';
+        console.error('❌ Password too short:', trimmedPassword.length);
+        setError(error);
+        return { success: false, error };
+      }
+
       const nickname = generateRandomNickname();
 
+      console.log('📝 Attempting signup with:', {
+        email: trimmedEmail,
+        passwordLength: trimmedPassword.length,
+        nickname,
+      });
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
         options: {
           data: {
             nickname,
@@ -125,7 +196,12 @@ export function useAuth() {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        console.error('❌ Supabase signup error:', signUpError);
+        console.error('   Error code:', signUpError.status);
+        console.error('   Error message:', signUpError.message);
+        throw signUpError;
+      }
 
       if (data.user) {
         // メール確認が必要かチェック
@@ -158,27 +234,61 @@ export function useAuth() {
    */
   const signInWithEmail = async (email: string, password: string) => {
     if (!isSupabaseConfigured) {
-      // モック認証
-      const mockUser: User = {
-        id: 'mock-' + Date.now(),
-        email,
-        nickname: generateRandomNickname(),
-        provider: 'email',
-        created_at: new Date().toISOString(),
-      };
-      setUser(mockUser);
-      return { success: true };
+      const error = "Supabase設定が必要です。.env.localファイルを確認してください。";
+      console.error("❌", error);
+      setError(error);
+      return { success: false, error };
     }
 
     try {
       setError(null);
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // クライアント側バリデーション
+      const trimmedEmail = email.trim();
+      const trimmedPassword = password.trim();
+
+      if (!trimmedEmail || !trimmedPassword) {
+        const error = 'メールアドレスとパスワードを入力してください';
+        console.error('❌ Validation failed:', error);
+        setError(error);
+        return { success: false, error };
+      }
+
+      if (trimmedPassword.length < 6) {
+        const error = 'パスワードは6文字以上で入力してください';
+        console.error('❌ Password too short:', trimmedPassword.length);
+        setError(error);
+        return { success: false, error };
+      }
+
+      console.log('🔑 Attempting login with:', {
+        email: trimmedEmail,
+        passwordLength: trimmedPassword.length,
       });
 
-      if (signInError) throw signInError;
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: trimmedPassword,
+      });
+
+      if (signInError) {
+        console.error('❌ Supabase auth error:', signInError);
+        console.error('   Error code:', signInError.status);
+        console.error('   Error message:', signInError.message);
+        
+        // エラーメッセージの改善
+        let userFriendlyError = signInError.message;
+        
+        if (signInError.message.includes('Invalid login credentials')) {
+          userFriendlyError = 'メールアドレスまたはパスワードが正しくありません';
+        } else if (signInError.message.includes('Email not confirmed')) {
+          userFriendlyError = 'メールアドレスの確認が必要です。受信トレイをご確認ください';
+        } else if (signInError.message.includes('User not found')) {
+          userFriendlyError = 'このメールアドレスは登録されていません';
+        }
+        
+        throw new Error(userFriendlyError);
+      }
 
       if (data.session && data.user) {
         const userData: User = {
@@ -190,6 +300,7 @@ export function useAuth() {
           created_at: data.user.created_at,
         };
 
+        console.log('✅ Login successful. User ID:', userData.id);
         setUser(userData);
         return { success: true };
       }
@@ -197,6 +308,7 @@ export function useAuth() {
       return { success: false, error: 'ログインに失敗しました' };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました';
+      console.error('❌ Login exception:', errorMessage);
       setError(errorMessage);
       return { success: false, error: errorMessage };
     }

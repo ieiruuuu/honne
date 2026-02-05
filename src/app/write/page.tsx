@@ -11,26 +11,58 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { AuthModal } from "@/features/auth/components/AuthModal";
 import { LABELS, PLACEHOLDERS, CATEGORIES, ERROR_MESSAGES, SUCCESS_MESSAGES } from "@/lib/constants/ja";
 import { POST_DETAIL_LABELS } from "@/features/posts/constants";
-import { Send, X, Save, Info, Lock, Loader2 } from "lucide-react";
+import { Send, X, Save, Info, Lock, Loader2, Image as ImageIcon, Trash2 } from "lucide-react";
 import type { Category } from "@/types";
+import { uploadPostImage, validateImageFile, getImagePreviewUrl } from "@/lib/imageUpload";
 
 const DRAFT_KEY = "post_draft";
 
 export default function WritePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [content, setContent] = useState("");
   const [nickname, setNickname] = useState("");
   const [category, setCategory] = useState<Category | "">("");
   const [hasChanges, setHasChanges] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authCheckTimeout, setAuthCheckTimeout] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const { createPost, isCreating, error, validationErrors } = useCreatePost();
 
-  // ログイン確認
+  // Hydration 에러 방지
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      setShowAuthModal(true);
+    setMounted(true);
+  }, []);
+
+  // ログイン確認（タイムアウト付き）
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    // 3秒後にタイムアウト (ネットワーク遅延を考慮)
+    timeoutId = setTimeout(() => {
+      if (authLoading) {
+        console.warn("⚠️ Auth loading timeout (3s). Assuming guest mode.");
+        setAuthCheckTimeout(true);
+      }
+    }, 3000);
+
+    if (!authLoading) {
+      clearTimeout(timeoutId);
+      if (!isAuthenticated) {
+        setShowAuthModal(true);
+      }
     }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [authLoading, isAuthenticated]);
 
   /**
@@ -83,9 +115,56 @@ export default function WritePage() {
     setHasChanges(
       content.trim().length > 0 || 
       nickname.trim().length > 0 || 
-      category.length > 0
+      category.length > 0 ||
+      selectedImage !== null
     );
-  }, [content, nickname, category]);
+  }, [content, nickname, category, selectedImage]);
+
+  /**
+   * 画像選択ハンドラー
+   */
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    console.log("🖼️ Image selected:", file.name);
+    
+    // バリデーション
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setImageError(validation.error || "画像の選択に失敗しました");
+      return;
+    }
+
+    setImageError(null);
+    setSelectedImage(file);
+
+    // プレビュー生成
+    try {
+      const previewUrl = await getImagePreviewUrl(file);
+      setImagePreview(previewUrl);
+      console.log("✅ Image preview generated");
+    } catch (err) {
+      console.error("❌ Failed to generate preview:", err);
+      setImageError("プレビューの生成に失敗しました");
+    }
+  };
+
+  /**
+   * 画像削除ハンドラー
+   */
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setImageUrl(null);
+    setImageError(null);
+    
+    // input要素のリセット
+    const fileInput = document.getElementById("image-upload") as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,11 +174,43 @@ export default function WritePage() {
       content: content.trim().substring(0, 50) + "...",
       nickname: nickname.trim(),
       category: category,
+      hasImage: !!selectedImage,
     });
 
     if (!content.trim() || !nickname.trim() || !category) {
       console.warn("⚠️ Validation failed: missing required fields");
       return;
+    }
+
+    // 画像アップロード (選択されている場合)
+    let uploadedImageUrl: string | undefined = undefined;
+    
+    if (selectedImage) {
+      setIsUploadingImage(true);
+      setImageError(null);
+      
+      console.log("📤 Uploading image...");
+      
+      // ✅ 実際のユーザーIDを使用
+      if (!user?.id) {
+        console.error("❌ User ID not found for image upload");
+        setImageError("ユーザー情報が見つかりません");
+        setIsUploadingImage(false);
+        return;
+      }
+      
+      const uploadResult = await uploadPostImage(selectedImage, user.id);
+      
+      setIsUploadingImage(false);
+      
+      if (!uploadResult.success) {
+        console.error("❌ Image upload failed:", uploadResult.error);
+        setImageError(uploadResult.error || "画像のアップロードに失敗しました");
+        return;
+      }
+      
+      uploadedImageUrl = uploadResult.url;
+      console.log("✅ Image uploaded:", uploadedImageUrl);
     }
 
     console.log("✅ Validation passed, calling createPost...");
@@ -108,6 +219,7 @@ export default function WritePage() {
       content: content.trim(),
       nickname: nickname.trim(),
       category: category as Category,
+      image_url: uploadedImageUrl,
     });
 
     console.log("📊 createPost result:", result);
@@ -136,10 +248,11 @@ export default function WritePage() {
       content,
       nickname,
       category,
+      imagePreview,
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    alert("下書きを保存しました");
+    alert("下書きを保存しました（画像はプレビューのみ保存されます）");
   };
 
   const handleCancel = () => {
@@ -152,15 +265,14 @@ export default function WritePage() {
     }
   };
 
-  // ローディング中
-  if (authLoading) {
+  // Hydration 完了 & ローディング中
+  if (!mounted || (authLoading && !authCheckTimeout)) {
     return (
       <div className="min-h-screen bg-gray-50 pb-16">
         <Header />
         <main className="container mx-auto max-w-2xl px-4 py-6">
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
-            <p className="text-sm text-gray-600">読み込み中...</p>
           </div>
         </main>
         <BottomNav />
@@ -168,8 +280,11 @@ export default function WritePage() {
     );
   }
 
+  // タイムアウト後は未ログインとして処理
+  const isUserAuthenticated = authCheckTimeout ? false : isAuthenticated;
+
   // 未ログイン
-  if (!isAuthenticated) {
+  if (!isUserAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 pb-16">
         <Header />
@@ -282,6 +397,64 @@ export default function WritePage() {
             </div>
           </div>
 
+          {/* 画像アップロード */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              画像を添付 (任意)
+            </label>
+            
+            {!imagePreview ? (
+              <div>
+                <label
+                  htmlFor="image-upload"
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5 text-gray-500" />
+                  <span className="text-sm text-gray-600">画像を選択</span>
+                </label>
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  disabled={isCreating || isUploadingImage}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  JPG、PNG、WEBP形式、最大5MB
+                </p>
+              </div>
+            ) : (
+              <div className="relative">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  disabled={isCreating || isUploadingImage}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                {isUploadingImage && (
+                  <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                    <div className="text-center text-white">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                      <p className="text-sm">アップロード中...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {imageError && (
+              <p className="text-xs text-red-500 mt-2">{imageError}</p>
+            )}
+          </div>
+
           {/* ニックネーム */}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -299,9 +472,11 @@ export default function WritePage() {
           </div>
 
           {/* エラーメッセージ */}
-          {error && (
+          {(error || (validationErrors && validationErrors.length > 0)) && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 font-medium">{error}</p>
+              {error && (
+                <p className="text-sm text-red-600 font-medium">{error}</p>
+              )}
               {validationErrors && validationErrors.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {validationErrors.map((err, idx) => (
@@ -344,12 +519,21 @@ export default function WritePage() {
               <Button
                 type="submit"
                 disabled={
-                  isCreating || !content.trim() || !nickname.trim() || !category
+                  isCreating || isUploadingImage || !content.trim() || !nickname.trim() || !category
                 }
                 className="flex-1 gap-2"
               >
-                <Send className="w-4 h-4" />
-                {isCreating ? LABELS.POSTING : LABELS.POST}
+                {isCreating || isUploadingImage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {isUploadingImage ? "アップロード中..." : LABELS.POSTING}
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    {LABELS.POST}
+                  </>
+                )}
               </Button>
             </div>
           </div>

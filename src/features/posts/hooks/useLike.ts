@@ -42,21 +42,21 @@ export function useLike(postId: string, initialLikesCount: number = 0, userId?: 
         return;
       }
 
-      // Supabase でチェック
-      const { data, error } = await supabase
+      // Supabase でチェック (count 方式で 406 エラー回避)
+      const { count, error } = await supabase
         .from("post_likes")
-        .select("id")
+        .select("*", { count: "exact", head: true })
         .eq("post_id", postId)
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 = レコードが見つからない（いいねしていない）
+      if (error) {
         console.error("❌ Error checking like status:", error);
+        console.error("   Error code:", error.code);
+        console.error("   Error message:", error.message);
       }
 
-      const liked = !!data;
-      console.log("✅ Like status from Supabase:", liked);
+      const liked = (count || 0) > 0;
+      console.log("✅ Like status from Supabase:", liked, "(count:", count, ")");
       setIsLiked(liked);
     } catch (err) {
       console.error("❌ Error in checkLikeStatus:", err);
