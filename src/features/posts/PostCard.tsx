@@ -121,7 +121,14 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       </CardHeader>
       <CardContent className="pb-3">
-        <p className="text-base leading-relaxed whitespace-pre-wrap">
+        {/* タイトル */}
+        {post.title && (
+          <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
+            {post.title}
+          </h3>
+        )}
+        {/* 本文プレビュー */}
+        <p className="text-sm leading-relaxed text-gray-600 line-clamp-2">
           {post.content}
         </p>
         {/* 画像表示 */}
@@ -130,7 +137,7 @@ export function PostCard({ post }: PostCardProps) {
             <img
               src={post.image_url}
               alt="投稿画像"
-              className="w-full h-auto max-h-96 object-cover rounded-lg"
+              className="w-full h-auto max-h-64 object-cover rounded-lg"
               loading="lazy"
             />
           </div>

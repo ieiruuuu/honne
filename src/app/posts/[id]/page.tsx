@@ -380,6 +380,14 @@ export default function PostDetailPage() {
               </Badge>
             </div>
 
+            {/* タイトル */}
+            {post.title && (
+              <h1 className="text-2xl font-bold text-gray-900 mb-4 leading-tight">
+                {post.title}
+              </h1>
+            )}
+
+            {/* 本文 */}
             <p className="text-base leading-relaxed whitespace-pre-wrap mb-4">
               {post.content}
             </p>

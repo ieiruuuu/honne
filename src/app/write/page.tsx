@@ -20,6 +20,7 @@ const DRAFT_KEY = "post_draft";
 export default function WritePage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [nickname, setNickname] = useState("");
   const [category, setCategory] = useState<Category | "">("");
@@ -100,6 +101,7 @@ export default function WritePage() {
       try {
         const parsed = JSON.parse(draft);
         if (confirm("保存された下書きがあります。読み込みますか？")) {
+          setTitle(parsed.title || "");
           setContent(parsed.content || "");
           setNickname(parsed.nickname || "");
           setCategory(parsed.category || "");
@@ -113,12 +115,13 @@ export default function WritePage() {
   // 変更検知
   useEffect(() => {
     setHasChanges(
+      title.trim().length > 0 ||
       content.trim().length > 0 || 
       nickname.trim().length > 0 || 
       category.length > 0 ||
       selectedImage !== null
     );
-  }, [content, nickname, category, selectedImage]);
+  }, [title, content, nickname, category, selectedImage]);
 
   /**
    * 画像選択ハンドラー
@@ -171,14 +174,21 @@ export default function WritePage() {
 
     console.log("📝 Submit button clicked");
     console.log("Form data:", {
+      title: title.trim(),
       content: content.trim().substring(0, 50) + "...",
       nickname: nickname.trim(),
       category: category,
       hasImage: !!selectedImage,
     });
 
-    if (!content.trim() || !nickname.trim() || !category) {
+    if (!title.trim() || !content.trim() || !nickname.trim() || !category) {
       console.warn("⚠️ Validation failed: missing required fields");
+      return;
+    }
+
+    // タイトルの長さチェック
+    if (title.trim().length < 2) {
+      alert("タイトルは2文字以上入力してください");
       return;
     }
 
@@ -216,6 +226,7 @@ export default function WritePage() {
     console.log("✅ Validation passed, calling createPost...");
 
     const result = await createPost({
+      title: title.trim(),
       content: content.trim(),
       nickname: nickname.trim(),
       category: category as Category,
@@ -245,6 +256,7 @@ export default function WritePage() {
 
   const handleSaveDraft = () => {
     const draft = {
+      title,
       content,
       nickname,
       category,
@@ -376,6 +388,27 @@ export default function WritePage() {
               </p>
             </div>
           )}
+
+          {/* タイトル */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              タイトル <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="タイトルを入力してください（2文字以上）"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent"
+              disabled={isCreating}
+              maxLength={100}
+            />
+            <div className="flex justify-end mt-2">
+              <span className="text-xs text-gray-400">
+                {title.length}/100
+              </span>
+            </div>
+          </div>
 
           {/* 内容 */}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -519,7 +552,7 @@ export default function WritePage() {
               <Button
                 type="submit"
                 disabled={
-                  isCreating || isUploadingImage || !content.trim() || !nickname.trim() || !category
+                  isCreating || isUploadingImage || !title.trim() || !content.trim() || !nickname.trim() || !category
                 }
                 className="flex-1 gap-2"
               >

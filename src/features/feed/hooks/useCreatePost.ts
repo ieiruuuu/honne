@@ -8,6 +8,7 @@ import {
 } from "../constants";
 
 interface CreatePostData {
+  title: string; // タイトル (必須)
   content: string;
   category: Category;
   nickname: string;
@@ -15,7 +16,7 @@ interface CreatePostData {
 }
 
 interface ValidationError {
-  field: "content" | "nickname" | "category";
+  field: "title" | "content" | "nickname" | "category";
   message: string;
 }
 
@@ -49,6 +50,20 @@ export function useCreatePost() {
    */
   const validateInput = (data: CreatePostData): ValidationError[] => {
     const errors: ValidationError[] = [];
+
+    // タイトルチェック
+    if (!data.title || data.title.trim().length < 2) {
+      errors.push({
+        field: "title",
+        message: "タイトルは2文字以上入力してください",
+      });
+    }
+    if (data.title && data.title.trim().length > 100) {
+      errors.push({
+        field: "title",
+        message: "タイトルは100文字以内にしてください",
+      });
+    }
 
     // 内容チェック
     if (data.content.trim().length < FEED_LABELS.CONTENT_MIN_LENGTH) {
@@ -124,6 +139,7 @@ export function useCreatePost() {
       }
 
       console.log("📝 Creating post with payload:", {
+        title: data.title.trim(),
         content: data.content.trim().substring(0, 50) + "...",
         category: data.category,
         nickname: data.nickname.trim(),
@@ -134,6 +150,7 @@ export function useCreatePost() {
 
       // ✅ user_id と image_url 追加
       const insertPayload: any = {
+        title: data.title.trim(), // ✅ タイトル追加
         content: data.content.trim(),
         category: data.category,
         nickname: data.nickname.trim(),

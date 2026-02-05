@@ -16,12 +16,15 @@ export type Category =
 
 export interface Post {
   id: string;
+  title?: string; // タイトル (オプション - 既存データ互換性のため)
   content: string;
   category: Category; // 厳格なカテゴリー型
   nickname: string;
   likes_count: number;
   comments_count?: number; // 댓글 수 (옵셔널)
   created_at: string;
+  user_id?: string; // ユーザーID (オプション)
+  image_url?: string; // 画像URL (オプション)
 }
 
 export interface Comment {
