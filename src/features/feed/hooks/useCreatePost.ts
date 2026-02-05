@@ -149,7 +149,7 @@ export function useCreatePost() {
       });
 
       // ✅ user_id と image_url 追加
-      const insertPayload: any = {
+      const insertPayload: Record<string, unknown> = {
         title: data.title.trim(), // ✅ タイトル追加
         content: data.content.trim(),
         category: data.category,

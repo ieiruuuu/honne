@@ -10,7 +10,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useProfile } from "@/features/user/hooks/useProfile";
 import { uploadAvatar, getAvatarPreviewUrl, validateAvatarFile } from "@/lib/avatarUpload";
 import { generateRandomNickname, validateNickname, sanitizeNickname, DEFAULT_NICKNAME } from "@/lib/nicknameGenerator";
-import { LABELS, SUCCESS_MESSAGES } from "@/lib/constants/ja";
+import { LABELS } from "@/lib/constants/ja";
 import { ArrowLeft, Camera, Loader2, X, User, RotateCw } from "lucide-react";
 
 export default function ProfileEditPage() {

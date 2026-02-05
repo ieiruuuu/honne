@@ -176,7 +176,7 @@ export function useComments(postId: string) {
       }
 
       // Supabase に挿入 (parent_id を含む)
-      const insertData: any = {
+      const insertData: Record<string, unknown> = {
         post_id: data.post_id,
         user_id: data.user_id,
         content: data.content.trim(),

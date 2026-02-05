@@ -29,7 +29,7 @@ const generateRandomNickname = (): string => {
  * - セッション管理
  */
 export function useAuth() {
-  const { user, isAuthenticated, sessionChecked, setUser, setLoading, setSessionChecked, logout: storeLogout } = useAuthStore();
+  const { user, isAuthenticated, sessionChecked, setUser, setLoading, logout: storeLogout } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
 
   /**

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePost } from "@/features/posts/hooks/usePost";
-import { useComments, Comment } from "@/features/posts/hooks/useComments";
+import { useComments } from "@/features/posts/hooks/useComments";
 import { useLike } from "@/features/posts/hooks/useLike";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { AuthModal } from "@/features/auth/components/AuthModal";
@@ -29,8 +29,6 @@ import {
   Shield,
   Clock,
   Brain,
-  ThumbsUp,
-  Reply,
   LucideIcon
 } from "lucide-react";
 import { useState } from "react";
@@ -96,8 +94,6 @@ export default function PostDetailPage() {
   const [comment, setComment] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null); // 返信対象コメントID
-  const [replyContent, setReplyContent] = useState(""); // 返信内容
   
   // 統合ローディング状態
   const isLoading = postLoading;
@@ -193,56 +189,6 @@ export default function PostDetailPage() {
   const handleCommentInputClick = () => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
-    }
-  };
-
-  /**
-   * 返信送信
-   */
-  const handleReplySubmit = async (parentId: string) => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    if (!user?.id || !post) {
-      alert('ログイン情報が見つかりません');
-      return;
-    }
-
-    if (!replyContent.trim()) {
-      alert('返信内容を入力してください');
-      return;
-    }
-
-    const isPostAuthor = post.user_id === user.id;
-    const commentNickname = isPostAuthor ? post.nickname : (user.nickname || '名無し');
-
-    setIsSubmittingComment(true);
-
-    try {
-      const result = await createComment({
-        post_id: postId,
-        user_id: user.id,
-        content: replyContent.trim(),
-        nickname: commentNickname,
-        parent_id: parentId, // 親コメントIDを指定
-      });
-
-      if (result.success) {
-        console.log('✅ Reply submitted successfully');
-        alert('返信を投稿しました！');
-        setReplyContent("");
-        setReplyingTo(null); // 返信モードを閉じる
-      } else {
-        console.error('❌ Reply submission failed:', result.error);
-        alert(`返信の投稿に失敗しました: ${result.error}`);
-      }
-    } catch (err) {
-      console.error('❌ Reply submission exception:', err);
-      alert('返信の投稿中にエラーが発生しました');
-    } finally {
-      setIsSubmittingComment(false);
     }
   };
 

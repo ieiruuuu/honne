@@ -18,7 +18,7 @@ import { USER_LABELS } from "@/features/user/constants";
 import { AUTH_LABELS } from "@/features/auth/constants";
 import { ONBOARDING_LABELS } from "@/features/auth/components/onboarding-constants";
 import { CATEGORIES } from "@/lib/constants/ja";
-import { Heart, MessageSquare, Settings, RefreshCw, Loader2, Lock, LogOut } from "lucide-react";
+import { Heart, MessageSquare, Settings, Loader2, Lock, LogOut } from "lucide-react";
 
 /**
  * マイページ

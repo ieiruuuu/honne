@@ -30,7 +30,6 @@ export default function WritePage() {
   const [mounted, setMounted] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const { createPost, isCreating, error, validationErrors } = useCreatePost();
@@ -42,10 +41,8 @@ export default function WritePage() {
 
   // ログイン確認（タイムアウト付き）
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    const timeoutId: NodeJS.Timeout = setTimeout(() => {
 
-    // 3秒後にタイムアウト (ネットワーク遅延を考慮)
-    timeoutId = setTimeout(() => {
       if (authLoading) {
         console.warn("⚠️ Auth loading timeout (3s). Assuming guest mode.");
         setAuthCheckTimeout(true);
@@ -159,7 +156,6 @@ export default function WritePage() {
   const handleRemoveImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
-    setImageUrl(null);
     setImageError(null);
     
     // input要素のリセット

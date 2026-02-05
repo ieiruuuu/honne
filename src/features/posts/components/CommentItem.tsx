@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ThumbsUp, Reply, Send, Loader2, CornerDownRight } from "lucide-react";
 import { Comment } from "../hooks/useComments";
 import { useCommentLike } from "../hooks/useCommentLike";
-import { LABELS } from "@/lib/constants/ja";
 
 interface CommentItemProps {
   comment: Comment;
